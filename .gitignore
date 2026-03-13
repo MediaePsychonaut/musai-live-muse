@@ -1,0 +1,64 @@
+# ==========================================
+# OS & IDE JUNK
+# ==========================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+.vscode/
+.idea/
+*.iml
+.history/
+
+# ==========================================
+# FLUTTER & DART (Frontend)
+# ==========================================
+# Core build artifacts
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+
+# Avoid committing local machine-specific paths
+**/android/local.properties
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# Generated code (Safe to ignore as they are rebuilt)
+**/*.freezed.dart
+**/*.g.dart
+
+# ==========================================
+# PYTHON & ADK (Backend)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.python-version
+.pytest_cache/
+.mypy_cache/
+
+# ==========================================
+# SECURITY & SECRETS (GCP/Firebase)
+# ==========================================
+# NEVER commit these
+.env
+.env.*
+secrets.json
+keys.json
+service-account.json
+*_key.pem
+**/*.keystore
+**/*.jks
+
+# ==========================================
+# ASSETS & MEDIA
+# ==========================================
+# Keep the repo lean. Store raw high-res footage in the G: drive, keep only logos here.
+**/raw_footage/

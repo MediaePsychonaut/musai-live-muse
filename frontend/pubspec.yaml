@@ -1,0 +1,57 @@
+name: frontend
+description: "MusAI Live Muse - The Sovereign Musical Mentor"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # --- Core Architecture & State ---
+  flutter_riverpod: ^2.5.1
+  google_fonts: ^6.2.1
+  
+  # --- Hackathon Connectivity (Live API) ---
+  firebase_core: ^3.15.0
+  google_generative_ai: ^0.2.0  # For standard Gemini interaction
+  web_socket_channel: 3.0.1    # Crucial for Bidi-Streaming (Live API)
+  record: ^5.0.0                # To capture the musician's audio stream
+  flutter_dotenv: ^6.0.0
+  firebase_ai: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 🖼️ Asset Registry (Relative to frontend/ folder)
+  assets:
+    - assets/images/logo/logo.png
+
+  # 🔡 Modular Typography (Material Design 3)
+  fonts:
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Montserrat-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Montserrat-Light.ttf
+          weight: 300
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf
+          weight: 400

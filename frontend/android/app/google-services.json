@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "308716612684",
+    "project_id": "musai-live-muse",
+    "storage_bucket": "musai-live-muse.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308716612684:android:af079f3a4ee31e3e5618e9",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs-W8SQC8uob2CJ4V_NpFyCtILJVRncSE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
