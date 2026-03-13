@@ -1,4 +1,5 @@
 <img width="512" height="512" alt="logo11" src="https://github.com/user-attachments/assets/8a323b67-eef9-421c-9ef8-ec3bde6ee68b" />
+
 # musai-live-muse
 AI-Powered Real-time Musical Mentorship &amp; Improvisation. Built for the Gemini Live Agent Challenge.
 
