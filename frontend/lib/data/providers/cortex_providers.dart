@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/audio/audio_recorder.dart';
 import '../../core/dsp/pitch_detector.dart';
@@ -68,7 +69,22 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
 
       await _service!.connect(
         onMessage: (msg) {
-          // Future: Process technical feedback from EUTE
+          // Directive: Process technical feedback from EUTE
+          final serverContent = msg['server_content'];
+          if (serverContent != null) {
+            final modelTurn = serverContent['model_turn'];
+            if (modelTurn != null) {
+              final parts = modelTurn['parts'] as List?;
+              if (parts != null) {
+                for (final part in parts) {
+                  final text = part['text'];
+                  if (text != null) {
+                    debugPrint("MUSE_LOG: [EUTE] Response: $text");
+                  }
+                }
+              }
+            }
+          }
         },
         onError: (err) {
           state = AsyncValue.data(LiveStreamState(
@@ -81,11 +97,19 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         },
       );
 
+      // [SEQUENTIAL-HANDSHAKE] Setup is strictly complete. Activate Audio Pipeline.
+      debugPrint("MUSE_LOG: [EUTE] Protocol Synchronized. Activating Audio Pipeline...");
+
       // Initialize Pitch Detector Isolate
       _pitchDetector = PitchDetector();
       await _pitchDetector!.init();
       
+      DateTime lastUpdate = DateTime.now();
       _pitchSubscription = _pitchDetector!.results.listen((result) {
+        final now = DateTime.now();
+        if (now.difference(lastUpdate).inMilliseconds < 40) return;
+        
+        lastUpdate = now;
         final currentState = state.value;
         if (currentState != null) {
           state = AsyncValue.data(currentState.copyWith(
