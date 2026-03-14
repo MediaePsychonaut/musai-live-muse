@@ -12,14 +12,15 @@ dependencies:
   cupertino_icons: ^1.0.8
   
   # --- Core Architecture & State ---
-  flutter_riverpod: ^2.5.1
-  google_fonts: ^6.2.1
+  flutter_riverpod: ^2.6.1
+  google_fonts: ^6.3.3
   
-  # --- Hackathon Connectivity (Live API) ---
+  # --- Hackathon Connectivity & Audio ---
   firebase_core: ^3.15.0
   google_generative_ai: ^0.2.0  # For standard Gemini interaction
   web_socket_channel: 3.0.1    # Crucial for Bidi-Streaming (Live API)
   record: ^5.1.0                # To capture the musician's audio stream
+  flutter_soloud: ^2.0.0        # High-fidelity 24kHz PCM Audio Sink
   firebase_ai: ^2.3.0
 
 dev_dependencies:

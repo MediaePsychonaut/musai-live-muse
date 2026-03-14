@@ -64,16 +64,49 @@ class GeminiLiveService {
 
             final decoded = jsonDecode(rawString);
 
-            // [SEQUENTIAL-HANDSHAKE] Detect setupComplete (CamelCase from Google)
-            final isSetup = rawString.contains('setupComplete');
-            if (!setupHandled && isSetup) {
-              debugPrint("MUSE_LOG: [EUTE] Setup Complete Received: $decoded");
+            // [SEQUENTIAL-HANDSHAKE] Detect setupComplete (v2.1 CamelCase Spec)
+            if (!setupHandled && decoded.containsKey('setupComplete')) {
+              debugPrint("MUSE_LOG: [EUTE] Setup Complete Acknowledgement Received.");
               setupHandled = true;
               completer.complete();
             }
 
-            // Directive: Check for model_turn and handle response
-            onMessage(decoded);
+            // [AUDITORY-DECODING] Extract and decode 24kHz PCM chunks
+            final serverContent = decoded['serverContent'];
+            if (serverContent != null) {
+              final modelTurn = serverContent['modelTurn'];
+              if (modelTurn != null) {
+                final parts = modelTurn['parts'] as List?;
+                if (parts != null) {
+                  for (final part in parts) {
+                    // Handle Text Feedback
+                    final text = part['text'];
+                    if (text != null) {
+                      debugPrint("MUSE_LOG: [EUTE] Response: $text");
+                    }
+
+                    // Handle Audio Data (PCM 24kHz)
+                    final inlineData = part['inlineData'];
+                    if (inlineData != null) {
+                      final data = inlineData['data'];
+                      if (data != null && data is String) {
+                        try {
+                          final pcmChunk = base64Decode(data);
+                          // Directive: Pipe to JitterBuffer (Future)
+                          // debugPrint("MUSE_LOG: [EUTE] Decoded PCM Chunk: ${pcmChunk.length} bytes");
+                          onMessage({'audio_chunk': pcmChunk});
+                        } catch (e) {
+                          debugPrint("MUSE_LOG: [EUTE] Base64 Decode Error: $e");
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // Keep existing onMessage trigger for raw payloads if needed
+            // onMessage(decoded);
           } catch (e) {
             debugPrint("MUSE_LOG: [EUTE] Stream Parse Error: $e");
             debugPrint(
@@ -91,8 +124,9 @@ class GeminiLiveService {
             "MUSE_LOG: [EUTE] Session Purged. CLOSE_CODE: ${_channel?.closeCode}",
           );
           _channel = null;
-          if (!completer.isCompleted)
+          if (!completer.isCompleted) {
             completer.completeError("Connection closed before setup.");
+          }
           onDone();
         },
       );
@@ -104,43 +138,18 @@ class GeminiLiveService {
           "setup": {
             "model": _model,
             "generation_config": {
-              "response_modalities": ["audio"],
-              "speech_config": {
-                "voice_config": {
-                  "prebuilt_voice_config": {"voice_name": "puck"},
-                },
+              "response_modalities": ["AUDIO"],
+              "audio_config": {
+                "sample_rate": 16000,
               },
-            },
-            "system_instruction": {
-              "parts": [
-                {
-                  "text":
-                      "I am EUTE. The Auditory Guardian of MusAI. Technical, precise, and minimalist. Always start with: 'I am EUTE. The sync is locked.'",
-                },
-              ],
-            },
-          },
-        };
-        /**
-        final handshake = {
-          "setup": {
-            "model": _model,
-            "generation_config": {
-              //"response_modalities": ["audio"],
-              "responseModalities": [
-                "audio",
-              ], //quick test to check that _ separator is not a problem
               "speech_config": {
                 "voice_config": {
                   "prebuilt_voice_config": {
-                    //"voice_name": "aoede" // High-fidelity technical Muse
-                    "voice_name":
-                        "puck", // Testing if aoede is not part of the problem 1007
+                    "voice_name": "Aoede", // High-fidelity technical Muse
                   },
                 },
               },
             },
-            //"audio_config": {"sample_rate": 16000},
             "system_instruction": {
               "parts": [
                 {
@@ -151,7 +160,6 @@ class GeminiLiveService {
             },
           },
         };
-        **/
         _channel!.sink.add(jsonEncode(handshake));
         debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked.");
       } catch (handshakeError) {

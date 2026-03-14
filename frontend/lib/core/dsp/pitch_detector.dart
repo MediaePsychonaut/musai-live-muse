@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'sovereign_fft.dart';
 
 /// message types for communicating with the PitchDetector Isolate
 class PitchDetectorParams {
@@ -14,8 +15,10 @@ class PitchDetectorParams {
 class PitchDetectorResult {
   final double pitch;
   final double volume;
+  final List<double> spectrum;
+  final double violinResonance;
 
-  PitchDetectorResult(this.pitch, this.volume);
+  PitchDetectorResult(this.pitch, this.volume, this.spectrum, this.violinResonance);
 }
 
 class PitchDetector {
@@ -51,32 +54,46 @@ class PitchDetector {
     final receivePort = ReceivePort();
     sendPort.send(receivePort.sendPort);
 
+    // [SOVEREIGN-FFT] Zero-allocation engine (size 1024)
+    final fft = SovereignFFT(1024);
+    
+    // [V2.1] Pre-allocated pre-processor buffer
+    final samplesBuffer = Float32List(1024);
+
     receivePort.listen((message) {
       if (message is PitchDetectorParams) {
-        final result = _analyze(message.frame, message.sampleRate);
+        final result = _analyze(fft, samplesBuffer, message.frame, message.sampleRate);
         sendPort.send(result);
       }
     });
   }
 
-  static PitchDetectorResult _analyze(Uint8List frame, int sampleRate) {
-    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0);
+  static PitchDetectorResult _analyze(SovereignFFT fft, Float32List samples, Uint8List frame, int sampleRate) {
+    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0, const [], 0.0);
 
-    // Convert to float samples
-    final samples = Float32List(frame.length ~/ 2);
+    // Convert to float samples into the pre-allocated buffer
+    final numSamples = math.min(samples.length, frame.length ~/ 2);
     double sumSq = 0;
-    for (int i = 0; i < samples.length; i++) {
+    for (int i = 0; i < numSamples; i++) {
       int sample = frame[i * 2] | (frame[i * 2 + 1] << 8);
       if (sample > 32767) sample -= 65536;
       final floatSample = sample / 32768.0;
       samples[i] = floatSample;
       sumSq += floatSample * floatSample;
     }
+    
+    // Zero out the rest of the buffer if frame is smaller (prevents ghosting)
+    if (numSamples < samples.length) {
+      samples.fillRange(numSamples, samples.length, 0.0);
+    }
 
-    final volume = math.sqrt(sumSq / samples.length);
-    if (volume < 0.01) return PitchDetectorResult(0.0, volume);
+    final volume = math.sqrt(sumSq / numSamples);
+    if (volume < 0.01) return PitchDetectorResult(0.0, volume, const [], 0.0);
 
-    // Simple Autocorrelation
+    // [SPECTRAL-EAR] Noise Suppression Scaffold
+    _applyNoiseSuppression(samples);
+
+    //Simple Autocorrelation
     double maxCorr = -1.0;
     int bestLag = -1;
 
@@ -105,6 +122,29 @@ class PitchDetector {
       pitch = sampleRate / bestLag;
     }
 
-    return PitchDetectorResult(pitch, volume);
+    // [SOVEREIGN-FFT] SPECTRAL ANALYSIS
+    // Process frame directly from Float32List to avoid copying
+    final magnitudeSpectrum = fft.processFrame(samples);
+    
+    // [SOVEREIGN-FFT] RESONANCE EXTRACTION
+    final resonance = fft.getViolinResonance(magnitudeSpectrum);
+    
+    // DIRECT DELIVERY: Float64List implements List<double>. 
+    // Sending over the port will perform the necessary copy for the UI isolate.
+    return PitchDetectorResult(pitch, volume, magnitudeSpectrum, resonance);
+  }
+
+  /// [SPECTRAL-EAR] Frequency Purification
+  /// 
+  /// Placeholder for FFT-based noise subtraction.
+  /// Enforces librosa-style spectral subtraction logic.
+  static void _applyNoiseSuppression(Float32List samples) {
+    // 1. FFT Transformation (Future: Use fftea or custom radix-2)
+    // 2. Estimate Noise Floor (Median of magnitudes)
+    // 3. Spectral Subtraction (Magnitude = max(Magnitude - Alpha * Noise, 0))
+    // 4. Inverse FFT
+    
+    // CURRENT: Pass-through until FFT engine is integrated.
+    // debugPrint("MUSE_LOG: [EUTE] Applying spectral subtraction...");
   }
 }
