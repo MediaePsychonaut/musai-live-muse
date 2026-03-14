@@ -19,8 +19,7 @@ dependencies:
   firebase_core: ^3.15.0
   google_generative_ai: ^0.2.0  # For standard Gemini interaction
   web_socket_channel: 3.0.1    # Crucial for Bidi-Streaming (Live API)
-  record: ^5.0.0                # To capture the musician's audio stream
-  flutter_dotenv: ^6.0.0
+  record: ^5.1.0                # To capture the musician's audio stream
   firebase_ai: ^2.3.0
 
 dev_dependencies:
@@ -55,3 +54,13 @@ flutter:
       fonts:
         - asset: assets/fonts/RobotoMono-Regular.ttf
           weight: 400
+
+dependency_overrides:
+  # Forzamos la interfaz a una versión que coincida con las implementaciones
+  record_platform_interface: 1.2.0
+  # Mantenemos el fix de web por si acaso
+  record_web: 1.1.1
+  # Forzamos el paquete de linux a ignorar el error de la interfaz nueva
+  record_linux: 0.7.2
+  # Mantenemos la paz con Firebase
+  web: ^0.5.1
