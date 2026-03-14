@@ -55,7 +55,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
                     statusText,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           letterSpacing: 8,
-                          shadows: [
+                          shadows: const [
                             Shadow(
                               color: MusaiTheme.neonCyan,
                               blurRadius: 10,

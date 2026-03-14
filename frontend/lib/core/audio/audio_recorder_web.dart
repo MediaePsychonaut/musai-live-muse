@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'audio_recorder_interface.dart';
 
 class MockCortexRecorder implements CortexRecorder {
@@ -9,7 +9,7 @@ class MockCortexRecorder implements CortexRecorder {
   @override
   Future<void> startStream(CortexRecordConfig config) async {
     // Web Mock: No-op to bypass record_web compiler error
-    print("MUSE_DEBUG: Web Audio Recorder Stream Started (Mock)");
+    debugPrint("MUSE_DEBUG: Web Audio Recorder Stream Started (Mock)");
   }
 
   @override
@@ -17,7 +17,7 @@ class MockCortexRecorder implements CortexRecorder {
 
   @override
   Future<void> stop() async {
-    print("MUSE_DEBUG: Web Audio Recorder Stopped (Mock)");
+    debugPrint("MUSE_DEBUG: Web Audio Recorder Stopped (Mock)");
   }
 
   @override
