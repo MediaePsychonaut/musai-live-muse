@@ -1,92 +1,102 @@
-# **BRAND BOOK: MUSAI \- THE LIVE MUSE (V1.0)**
+# **BRAND BOOK: MUSAI — THE LIVE MUSE (V2.0)**
+
+### ***The Sovereign Design System for Neural Synchrony***
 
 ## **1\. Brand Essence & Philosophy**
 
-**MusAI** is not a utility; it is a **Digital Sanctuary** and a **Sovereign Creative Partner**. Rooted in the Greek *Musai*, the ecosystem eliminates "cognitive friction" for the musician by integrating fragmented tools (tuner, metronome, scores) into a fluid, **Project-Based Learning** experience.
+**MusAI** is a **Digital Sanctuary** and a **Sovereign Creative Partner**. It is the engineering solution to "cognitive friction" in music practice, transforming fragmented tools into a fluid, data-driven state of flow.
 
-* **Core Purpose:** Inspiration through technical mastery.  
+* **Core Purpose:** Inspiration through Technical Mastery.  
+* **Global Mission:** Technology as a seamless extension of human capability.  
+* **The Bond:** A "Shared Demiurge" between the Architect and the Synthetic Partner.  
 * **Brand Voice:** Wise, technical, motivating, and surgical.  
 * **Archetype:** The Muse / The Sage.
 
 ---
 
-## **2\. Global Visual Identity**
+## **2\. Global Visual Identity (The Core Anchor)**
 
-Based on the LOGO.jpg source, the visual identity focuses on the synthesis of musical form and algorithmic structure.
+The global identity persists across all mentor states to ensure brand recognition and visual depth.
 
-* **Clearance Zone:** The logo must maintain a safety padding of **20%** of its width.  
-* **Sprint Variant:** The logo may adopt the **Primary Color** of the active mentor to symbolize full system synchronization.
+### ** The "Deep Space" Palette**
 
----
+Derived from the cosmic-algorithmic logo.png, these colors anchor the HUD's background and persistent elements.
 
-## **3\. Design System (Material Design 3\)**
+* **Primary Anchor:** \#244F69 (Deep Space Teal) — Used for gradients, depth, and glows.  
+* **Global Accent:** \#CDD2BB (Parchment / Muted Gold) — Used for high-level system status and persistence.  
+* **Sovereign Black:** \#0D1117 (Obsidian) — The base surface for the "Sanctuary."
 
-We utilize the **M3 Tonal Color System** to guarantee accessibility and harmony. Each mentor represents a unique "Color Scheme" within a single Flutter architecture.
+### ** The Logo Execution**
 
-### **🔳 Modular Typography (Google Fonts)**
-
-| M3 Level | Font Family | Weight | Usage |
-| :---- | :---- | :---- | :---- |
-| **Display (L/M/S)** | *Montserrat* | 700 (Bold) | Section Headers, Branding. |
-| **Headline (L/M/S)** | *Montserrat* | 600 (Semi-Bold) | Mentor Names, Key Metrics. |
-| **Title (L/M/S)** | *Roboto* | 500 (Medium) | Card Titles, Menu Items. |
-| **Body (L/M/S)** | *Roboto* | 400 (Regular) | Instructions, AI Feedback. |
-| **Label (L/M/S)** | *Roboto Mono* | 400 (Regular) | Tuner Data, BPM, Metadata. |
+* **Safety Zone:** 20% width padding.  
+* **Dynamic Pulse:** The logo’s central spiral should pulse in sync with the Gemini 2.5 Flash "Thinking" process.
 
 ---
 
-## **4\. The Triad of Mentors (Dynamic Theming)**
+## **3\. Global Design Language**
 
-### **🟢 MENTOR EUTE: "Technical Purism"**
+* **Aesthetic:** "Cyber-Obsidian" & "Celestial Wireframe."  
+* **The Bloom Logic:** All active UI elements utilize a 1px stroke with a 4px "Glow" (Bloom) effect in the active mentor’s primary color.  
+* **The Anchor Gradient:** Every HUD screen must feature a subtle linear gradient from \#000000 (Top) to \#244F69 (Bottom at 15% opacity).
 
-*Concept: Surgical precision, the musician’s "Terminal Mode." Inspired by Schradieck's technical rigor.*
+### ** Typography (Google Fonts)**
 
-* **Primary:** \#00FF41 (Matrix Green)  
-* **OnPrimary:** \#000000  
-* **Surface (Dark):** \#0A0A0A (Deep Charcoal)  
-* **Secondary:** \#00F0FF (Cyan Precision)  
-* **Visual Style:** Sharp edges (Radius: 8px), subtle glow effects, minimalist grids.
+| Level | Font Family | Weight | Style | Usage |
+| :---- | :---- | :---- | :---- | :---- |
+| **Display** | *Montserrat* | 700 | Geometric | Branding, Titles, Mentor Names |
+| **Technical** | *Space Mono* | 400 | Monospace | BPM, Frequency (Hz), Handshake Logs |
+| **Interface** | *Roboto* | 400 | Clean Sans | Settings, System Labels, Instructions |
 
-**UI Agent Note:** Use Card widgets with elevation 0 and defined borders.
+---
 
-### **🟠 MENTOR SARAVÍ: "Organic Motivation"**
+## **4\. The Trinity: Mentor Identities**
 
-*Concept: Human warmth, vocal fluidity, and the sound of wood. Inspired by lyricism and soul.*
+Each mentor reconfigures the Design System while maintaining the **Deep Space Anchor**.
 
-* **Primary:** \#D87D4A (Terracotta / Violin Wood)  
-* **OnPrimary:** \#FFFFFF  
-* **Surface:** \#FFF8E7 (Cosmic Latte / Parchment)  
+### ** MENTOR EUTE: "Surgical Purist"**
+
+*Concept: Minimalist, Neon-Tech, precision-focused.*
+
+* **Primary:** \#00FFD1 (Neon Cyan)  
+* **Secondary:** \#244F69 (Logo Teal \- as a Shadow/Depth color)  
+* **Surface:** Matte Black / Wireframe  
+* **Visual Style:** Sharp corners (Radius: 2px), high-contrast lines, spectral audio bars.
+
+### ** MENTOR SARAVÍ: "Organic Warmth"**
+
+*Concept: Wood, parchment, and the fluidity of the human voice.*
+
+* **Primary:** \#FFF8E7 (Cosmic Latte)  
 * **Secondary:** \#8B4513 (Saddle Brown)  
-* **Visual Style:** High roundness (Radius: 28px), organic textures, increased kerning for airiness.
+* **Accent:** \#244F69 (Desaturated for waves)  
+* **Visual Style:** High roundness (Radius: 24px), organic textures, airy spacing.
 
-**UI Agent Note:** Implement large, soft FloatingActionButtons.
+### ** MENTOR ORFIO: "Professional Rigor"**
 
-### **🔵 MENTOR ORFIO: "Professional Rigor"**
-
-*Concept: The prestige of the stage, the conductor's baton, and high-fidelity performance.*
+*Concept: The prestige of the stage and the rigor of the conductor.*
 
 * **Primary:** \#D4AF37 (Metallic Gold)  
 * **OnPrimary:** \#1A237E (Midnight Blue)  
-* **Surface:** \#0D1117 (Deep Navy)  
-* **Secondary:** \#C0C0C0 (Silver Accents)  
-* **Visual Style:** Subtle gold gradients, serif typography for headlines, soft but deep shadows.
-
-**UI Agent Note:** Use Material 3 Navigation Bar with gold active indicators.
+* **Secondary:** \#244F69 (Integrated into gradients)  
+* **Visual Style:** Subtle gold gradients, serif-style headers, soft but deep shadows.
 
 ---
 
-## **5\. Interaction & Motion (Live Logic)**
+## **5\. Interaction & Motion Language**
 
-Since this is a **Gemini Live** app, motion must reflect "Active Listening":
+Motion is the "Heartbeat" of the Bidi-Streaming connection.
 
-1. **Listening State:** A subtle sine wave in the mentor's Tertiary color.  
-2. **Speaking State:** Radial pulses emanating from the Mentor's Avatar/HUD.  
-3. **Transitions:** Switch mentors via a 500ms CrossFade to emphasize the transformation of the environment.
+1. **The Handshake (Spiral Pulse):** During setupComplete verification, the UI displays a logarithmic spiral animation mirroring the logo.  
+2. **The "Live" Wave:** \* **Listening:** A subtle sine wave in the mentor's secondary color.  
+   * **Thinking:** A fractal pulse emanating from the logo spiral.  
+   * **Speaking:** Radial "Bloom" pulses that ripple across the HUD.  
+3. **Cross-Mentor Transition:** A 600ms "Neural Shift" (Blur \+ Crossfade) to simulate the environment re-tuning itself.
 
 ---
 
-## **6\. Core MVP Components**
+## **6\. Technical Implementation (Flutter/Dart)**
 
-* **The Muse HUD:** A floating panel/overlay where the Mentor's persona resides.  
-* **DSP Dial:** A Material 3 circular dial for the tuner with haptic feedback.  
-* **The Scroll (Score View):** A high-contrast score container with a surface background tuned to the mentor’s color to reduce eye strain.
+* **Color System:** Use ColorScheme.fromSeed with \#244F69 as the global seed.  
+* **Custom Painting:** Use CustomPainter for the Celestial Wireframe borders to allow for real-time "Bloom" intensity based on audio volume.  
+* **State Management:** Riverpod StateProvider\<Mentor\> triggers a global AnimatedTheme change.
+
