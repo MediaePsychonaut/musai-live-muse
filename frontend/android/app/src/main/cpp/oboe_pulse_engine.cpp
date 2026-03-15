@@ -2,12 +2,54 @@
 #include <oboe/Oboe.h>
 #include <math.h>
 #include <android/log.h>
+#include <vector>
+#include <atomic>
 
 #define LOG_TAG "OboePulseEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 using namespace oboe;
+
+class RingBuffer {
+public:
+    RingBuffer(size_t capacity) : buffer(capacity), head(0), tail(0), size(0) {}
+
+    size_t write(const int16_t* data, size_t numSamples) {
+        size_t written = 0;
+        for (size_t i = 0; i < numSamples; ++i) {
+            if (size.load() < buffer.size()) {
+                buffer[head] = data[i];
+                head = (head + 1) % buffer.size();
+                size.fetch_add(1);
+                written++;
+            } else {
+                break; // Buffer full
+            }
+        }
+        return written;
+    }
+
+    bool read(int16_t& sample) {
+        if (size.load() > 0) {
+            sample = buffer[tail];
+            tail = (tail + 1) % buffer.size();
+            size.fetch_sub(1);
+            return true;
+        }
+        return false;
+    }
+
+    size_t available() const {
+        return size.load();
+    }
+
+private:
+    std::vector<int16_t> buffer;
+    size_t head;
+    size_t tail;
+    std::atomic<size_t> size;
+};
 
 class PulseEngine : public AudioStreamCallback {
 private:
@@ -24,6 +66,9 @@ private:
     double mDronePhase = 0.0;
     double mDronePhaseIncrement = 0.0;
     bool mDronePlaying = false;
+
+    // Vocal Ring Buffer (4 seconds @ 24kHz = 96000 samples)
+    RingBuffer mVocalBuffer{96000};
 
     void updatePhaseIncrement() {
         // We want a pulse every 60/BPM seconds.
@@ -103,6 +148,19 @@ public:
         }
     }
 
+    double writeVocalData(const int16_t* data, int32_t numSamples) {
+        // Calculate RMS in C++ for performance
+        double sumSq = 0.0;
+        for (int i = 0; i < numSamples; ++i) {
+            double sample = data[i] / 32768.0;
+            sumSq += sample * sample;
+        }
+        double rms = sqrt(sumSq / numSamples);
+
+        mVocalBuffer.write(data, numSamples);
+        return rms;
+    }
+
     DataCallbackResult onAudioReady(AudioStream *oboeStream, void *audioData, int32_t numFrames) override {
         float *floatData = (float *) audioData;
 
@@ -138,6 +196,13 @@ public:
                 sampleValue += sin(mDronePhase * M_PI * 2.0) * 0.2f; 
             }
 
+            // Mix AI Vocal from Ring Buffer
+            int16_t vocalSampleRaw;
+            if (mVocalBuffer.read(vocalSampleRaw)) {
+                float vocalSample = (float)vocalSampleRaw / 32768.0f;
+                sampleValue += vocalSample * 0.8f; // Priority volume
+            }
+
             // Simple clipping protection
             if (sampleValue > 1.0f) sampleValue = 1.0f;
             if (sampleValue < -1.0f) sampleValue = -1.0f;
@@ -169,4 +234,17 @@ Java_com_example_frontend_MainActivity_startDroneEngine(JNIEnv* env, jobject /* 
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_frontend_MainActivity_stopDroneEngine(JNIEnv* env, jobject /* this */) {
     engine.stopDrone();
+}
+
+extern "C" JNIEXPORT jdouble JNICALL
+Java_com_example_frontend_MainActivity_writeVocalData(JNIEnv* env, jobject /* this */, jbyteArray data) {
+    jsize len = env->GetArrayLength(data);
+    jbyte* bufferPtr = env->GetByteArrayElements(data, NULL);
+    
+    // Bytes to samples (PCM16)
+    int32_t numSamples = len / 2;
+    double rms = engine.writeVocalData((const int16_t*)bufferPtr, numSamples);
+    
+    env->ReleaseByteArrayElements(data, bufferPtr, JNI_ABORT);
+    return rms;
 }
