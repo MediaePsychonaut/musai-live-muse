@@ -7,6 +7,7 @@ import '../../core/dsp/pitch_detector.dart';
 import '../../core/secrets/secret_manager.dart';
 import '../services/gemini_live_service.dart';
 import 'mentor_providers.dart';
+import 'engine_provider.dart';
 
 enum LiveStreamStatus { disconnected, connecting, connected, error }
 
@@ -60,6 +61,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   PitchDetector? _pitchDetector;
   StreamSubscription? _pitchSubscription;
   StreamSubscription? _telemetrySubscription;
+  Timer? _stateThrottleTimer;
   final _audioOutput = AudioOutputService();
   bool _connecting = false;
 
@@ -93,9 +95,10 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       await _audioOutput.init();
       
       final currentMentor = ref.read(mentorProvider);
+      final currentEngine = ref.read(engineProvider);
 
       _service?.disconnect();
-      _service = GeminiLiveService(apiKey, recorder, currentMentor);
+      _service = GeminiLiveService(apiKey, recorder, currentMentor, currentEngine);
 
       await _service!.connect(
         onMessage: (msg) {
@@ -107,9 +110,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
           }
 
           // 2. Process technical feedback from EUTE
-          final serverContent = msg['serverContent'];
+          final serverContent = msg['server_content'] ?? msg['serverContent'];
           if (serverContent != null) {
-            final modelTurn = serverContent['modelTurn'];
+            final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
             if (modelTurn != null) {
               final parts = modelTurn['parts'] as List?;
               if (parts != null) {
@@ -139,39 +142,36 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       // [SEQUENTIAL-HANDSHAKE] Setup is strictly complete. Activate Audio Pipeline.
       debugPrint("MUSE_LOG: [EUTE] Protocol Synchronized. Activating Audio Pipeline...");
 
-      DateTime lastTelemetryUpdate = DateTime.now();
+      // Unified Governor State (Memory Buffer)
+      PitchDetectorResult? latestPitchResult;
+      double latestAiResonance = 0.0;
+      double latestEuteAmplitude = 0.0;
 
       // Initialize Pitch Detector Isolate
       _pitchDetector = PitchDetector();
       await _pitchDetector!.init();
-      DateTime lastUpdate = DateTime.now();
+      
       _pitchSubscription = _pitchDetector!.results.listen((result) {
-        final now = DateTime.now();
-        if (now.difference(lastUpdate).inMilliseconds < 40) return;
-        
-        lastUpdate = now;
-        final currentState = state.value;
-        if (currentState != null) {
-          state = AsyncValue.data(currentState.copyWith(
-            pitch: result.pitch,
-            volume: result.volume,
-            spectrum: result.spectrum,
-            violinResonance: result.violinResonance,
-          ));
-        }
+        latestPitchResult = result;
       });
 
       // [V2.2] Listen to native hardware telemetry for "AI Bloom"
       _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
-        final now = DateTime.now();
-        if (now.difference(lastTelemetryUpdate).inMilliseconds < 50) return;
-        
-        lastTelemetryUpdate = now;
+        latestAiResonance = rms;
+        latestEuteAmplitude = rms;
+      });
+
+      // [UNIFIED-GOVERNOR] Single 60ms State Frame-Pump (~16.6 FPS)
+      _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
         final currentState = state.value;
         if (currentState != null) {
           state = AsyncValue.data(currentState.copyWith(
-            aiResonance: rms,
-            euteOutputAmplitude: rms, // Direct binding for Bloom pulse
+            pitch: latestPitchResult?.pitch ?? currentState.pitch,
+            volume: latestPitchResult?.volume ?? currentState.volume,
+            spectrum: latestPitchResult?.spectrum ?? currentState.spectrum,
+            violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
+            aiResonance: latestAiResonance,
+            euteOutputAmplitude: latestEuteAmplitude,
           ));
         }
       });
@@ -204,6 +204,8 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _audioSubscription?.cancel();
     _pitchSubscription?.cancel();
     _telemetrySubscription?.cancel();
+    _stateThrottleTimer?.cancel();
+    _stateThrottleTimer = null;
     _pitchDetector?.dispose();
     _pitchDetector = null;
     

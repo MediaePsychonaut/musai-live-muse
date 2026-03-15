@@ -5,26 +5,34 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../core/audio/audio_recorder.dart';
-
 import '../../core/net/channel_factory.dart';
 import '../providers/mentor_providers.dart';
+import '../providers/engine_provider.dart';
 
 class GeminiLiveService {
   final String apiKey;
   final CortexRecorder recorder;
   final MentorState mentorState;
+  final EngineType engineType;
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   bool _isDisposed = false;
 
   static const String _host = 'generativelanguage.googleapis.com';
-  static const String _path =
-      '/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 
-  // IMMUTABLE Target Model: gemini-2.5-flash-native-audio-latest
-  static const String _model = 'models/gemini-2.5-flash-native-audio-latest';
+  String get _path {
+    return engineType == EngineType.flash20Exp
+        ? '/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent'
+        : '/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+  }
 
-  GeminiLiveService(this.apiKey, this.recorder, this.mentorState);
+  String get _model {
+    return engineType == EngineType.flash20Exp
+        ? 'models/gemini-2.0-flash-exp'
+        : 'models/gemini-2.5-flash-native-audio-latest';
+  }
+
+  GeminiLiveService(this.apiKey, this.recorder, this.mentorState, this.engineType);
 
   bool get isConnected => _channel != null;
 
@@ -41,7 +49,6 @@ class GeminiLiveService {
     _isDisposed = false;
 
     try {
-      // Directive: Inject standard headers via ChannelFactory
       _channel = createWebSocketChannel(uri, {
         'X-Goog-Api-Client': 'gl-dart/3.10.8 flutter/stable ai/gemini-live',
         'User-Agent': 'MusAI-Live-Muse/1.0.0 (Android)',
@@ -69,12 +76,14 @@ class GeminiLiveService {
             }
 
             final decoded = jsonDecode(rawString);
-            if (decoded.containsKey('serverContent') ||
+            if (decoded.containsKey('server_content') ||
+                decoded.containsKey('setup_complete') ||
+                decoded.containsKey('serverContent') ||
                 decoded.containsKey('setupComplete')) {
               _logServerContent(decoded);
             }
-            // [SEQUENTIAL-HANDSHAKE] Detect setupComplete (v2.1 CamelCase Spec)
-            if (!setupHandled && decoded.containsKey('setupComplete')) {
+            // [SEQUENTIAL-HANDSHAKE] Detect setupComplete
+            if (!setupHandled && (decoded.containsKey('setup_complete') || decoded.containsKey('setupComplete'))) {
               debugPrint(
                 "MUSE_LOG: [EUTE] Setup Complete Acknowledgement Received.",
               );
@@ -83,14 +92,14 @@ class GeminiLiveService {
             }
 
             // [AUDITORY-DECODING] Extract and decode 24kHz PCM chunks
-            final serverContent = decoded['serverContent'];
+            final serverContent = decoded['server_content'] ?? decoded['serverContent'];
             if (serverContent != null) {
-              final modelTurn = serverContent['modelTurn'];
+              final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
               if (modelTurn != null) {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
                   for (final part in parts) {
-                    final inlineData = part['inlineData'];
+                    final inlineData = part['inline_data'] ?? part['inlineData'];
                     if (inlineData != null) {
                       final data = inlineData['data'];
                       if (data != null && data is String) {
@@ -140,35 +149,58 @@ class GeminiLiveService {
       // [IMMUTABLE HANDSHAKE: THE VOICE OF EUTE]
       try {
         debugPrint("MUSE_LOG: [EUTE] Transmitting System Identity...");
-        final handshake = {
-          "setup": {
-            "model": _model,
-            "generationConfig": {
-              // <-- FIXED to camelCase
-              "responseModalities": ["AUDIO"], // <-- FIXED to UPPERCASE
-              "speechConfig": {
-                // <-- FIXED to camelCase
-                "voiceConfig": {
-                  "prebuiltVoiceConfig": {"voiceName": mentorState.voiceName},
+        
+        final Map<String, dynamic> handshake;
+
+        if (engineType == EngineType.flash20Exp) {
+          handshake = {
+            "setup": {
+              "model": _model,
+              "generation_config": {
+                "response_modalities": ["audio"],
+                "speech_config": {
+                  "voice_config": {
+                    "prebuilt_voice_config": {"voice_name": mentorState.voiceName},
+                  },
                 },
               },
+              "system_instruction": {
+                "parts": [
+                  {
+                    "text": mentorState.systemInstruction,
+                  },
+                ],
+              },
             },
-            "systemInstruction": {
-              // <-- FIXED to camelCase
-              "parts": [
-                {
-                  "text": mentorState.systemInstruction,
+          };
+        } else {
+          handshake = {
+            "setup": {
+              "model": _model,
+              "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                  "voiceConfig": {
+                    "prebuiltVoiceConfig": {"voiceName": mentorState.voiceName},
+                  },
                 },
-              ],
+              },
+              "systemInstruction": {
+                "parts": [
+                  {
+                    "text": mentorState.systemInstruction,
+                  },
+                ],
+              },
             },
-          },
-        };
+          };
+        }
+
         if (_channel != null && !_isDisposed) {
           _channel!.sink.add(jsonEncode(handshake));
-          debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked.");
+          debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked. Engine: $_model");
         }
       } catch (handshakeError) {
-        // ... existing catch logic
         debugPrint("MUSE_LOG: [EUTE] HANDSHAKE_FAILURE: $handshakeError");
         if (!completer.isCompleted) completer.completeError(handshakeError);
         rethrow;
@@ -200,64 +232,74 @@ class GeminiLiveService {
       final processedFrame = _enforceMono(frame);
 
       // 2. Exact Schema for Gemini Live
-      final message = {
-        "realtimeInput": {
-          "mediaChunks": [
-            {
-              "mimeType": "audio/pcm;rate=16000",
-              "data": base64Encode(processedFrame),
-            },
-          ],
-        },
-      };
+      final Map<String, dynamic> message;
+      
+      if (engineType == EngineType.flash20Exp) {
+        message = {
+          "realtime_input": {
+            "media_chunks": [
+              {
+                "mime_type": "audio/pcm;rate=16000",
+                "data": base64Encode(processedFrame),
+              },
+            ],
+          },
+        };
+      } else {
+        message = {
+          "realtimeInput": {
+            "mediaChunks": [
+              {
+                "mimeType": "audio/pcm;rate=16000",
+                "data": base64Encode(processedFrame),
+              },
+            ],
+          },
+        };
+      }
 
       if (!_isDisposed) {
         _channel!.sink.add(jsonEncode(message));
       }
     } catch (e, stack) {
-      // THIS WILL TELL US WHY IT IS TERMINATING
       debugPrint("MUSE_LOG: [EUTE] PIPELINE_CRASH: $e");
       debugPrint("MUSE_LOG: [EUTE] STACK: $stack");
     }
   }
 
   Uint8List _enforceMono(Uint8List frame) {
-    // If the buffer is already mono-sized (640 bytes for 20ms @ 16kHz)
     if (frame.length <= 640) return frame;
 
     try {
-      final int samples = frame.length ~/ 4; // 2 bytes per sample * 2 channels
+      final int samples = frame.length ~/ 4;
       final monoBuffer = Uint8List(samples * 2);
 
-      // Use a more robust view that respects the Uint8List offset
       final data = frame.buffer.asByteData(frame.offsetInBytes, frame.length);
       final output = monoBuffer.buffer.asByteData();
 
       for (int i = 0; i < samples; i++) {
-        // Read L/R 16-bit samples
         int left = data.getInt16(i * 4, Endian.little);
         int right = data.getInt16(i * 4 + 2, Endian.little);
 
-        // Downmix
         int mono = (left + right) ~/ 2;
         output.setInt16(i * 2, mono, Endian.little);
       }
       return monoBuffer;
     } catch (e) {
       debugPrint("MUSE_LOG: [EUTE] MONO_DOWNMIX_ERROR: $e");
-      return frame; // Fallback to raw if downmix fails
+      return frame;
     }
   }
 
   void _logServerContent(Map<String, dynamic> decoded) {
-    if (decoded.containsKey('setupComplete')) {
+    if (decoded.containsKey('setup_complete') || decoded.containsKey('setupComplete')) {
       debugPrint("MUSE_TELEMETRY: [SETUP] Acknowledgement Received.");
       return;
     }
     
-    final serverContent = decoded['serverContent'];
+    final serverContent = decoded['server_content'] ?? decoded['serverContent'];
     if (serverContent != null) {
-      final modelTurn = serverContent['modelTurn'];
+      final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
         final parts = modelTurn['parts'] as List?;
         if (parts != null) {
@@ -266,7 +308,7 @@ class GeminiLiveService {
             if (text != null) {
               debugPrint("MUSE_TELEMETRY: [TEXT] $text");
             }
-            final inlineData = part['inlineData'];
+            final inlineData = part['inline_data'] ?? part['inlineData'];
             if (inlineData != null) {
               final data = inlineData['data'];
               if (data is String) {
