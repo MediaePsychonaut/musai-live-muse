@@ -103,6 +103,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
                     child: BloomBorder(
                       bloomColor: mentorState.primaryColor,
                       borderRadius: mentorState.borderRadius,
+                      pulseTick: liveStream.value?.pulseTick ?? 0,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                         child: Text(

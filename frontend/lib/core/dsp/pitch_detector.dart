@@ -14,11 +14,12 @@ class PitchDetectorParams {
 
 class PitchDetectorResult {
   final double pitch;
+  final double centsDeviation; // Added: Deviation from A440
   final double volume;
   final List<double> spectrum;
   final double violinResonance;
 
-  PitchDetectorResult(this.pitch, this.volume, this.spectrum, this.violinResonance);
+  PitchDetectorResult(this.pitch, this.centsDeviation, this.volume, this.spectrum, this.violinResonance);
 }
 
 class PitchDetector {
@@ -69,7 +70,7 @@ class PitchDetector {
   }
 
   static PitchDetectorResult _analyze(SovereignFFT fft, Float32List samples, Uint8List frame, int sampleRate) {
-    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0, const [], 0.0);
+    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0, 0.0, const [], 0.0);
 
     // Convert to float samples into the pre-allocated buffer
     final numSamples = math.min(samples.length, frame.length ~/ 2);
@@ -88,7 +89,7 @@ class PitchDetector {
     }
 
     final volume = math.sqrt(sumSq / numSamples);
-    if (volume < 0.01) return PitchDetectorResult(0.0, volume, const [], 0.0);
+    if (volume < 0.01) return PitchDetectorResult(0.0, 0.0, volume, const [], 0.0);
 
     // [SPECTRAL-EAR] Noise Suppression Scaffold
     _applyNoiseSuppression(samples);
@@ -129,9 +130,16 @@ class PitchDetector {
     // [SOVEREIGN-FFT] RESONANCE EXTRACTION
     final resonance = fft.getViolinResonance(magnitudeSpectrum);
     
+    // [PITCH DEVIATION CALCULATION]
+    // A4 = 440Hz. Formula: cents = 1200 * log2(pitch / 440)
+    double centsDeviation = 0.0;
+    if (pitch > 0) {
+      centsDeviation = 1200 * (math.log(pitch / 440.0) / math.ln2);
+    }
+
     // DIRECT DELIVERY: Float64List implements List<double>. 
     // Sending over the port will perform the necessary copy for the UI isolate.
-    return PitchDetectorResult(pitch, volume, magnitudeSpectrum, resonance);
+    return PitchDetectorResult(pitch, centsDeviation, volume, magnitudeSpectrum, resonance);
   }
 
   /// [SPECTRAL-EAR] Frequency Purification

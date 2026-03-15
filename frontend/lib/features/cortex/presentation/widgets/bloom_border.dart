@@ -1,31 +1,79 @@
 import 'package:flutter/material.dart';
 
-class BloomBorder extends StatelessWidget {
+class BloomBorder extends StatefulWidget {
   final Widget child;
   final Color bloomColor;
   final double borderRadius;
   final double strokeWidth;
   final double blurRadius;
+  final int pulseTick; // Injected from cortex provider
 
   const BloomBorder({
     super.key,
     required this.child,
     required this.bloomColor,
+    required this.pulseTick,
     this.borderRadius = 8.0,
     this.strokeWidth = 1.0,
     this.blurRadius = 4.0,
   });
 
   @override
+  State<BloomBorder> createState() => _BloomBorderState();
+}
+
+class _BloomBorderState extends State<BloomBorder> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _decayAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+       vsync: this,
+       duration: const Duration(milliseconds: 400),
+    );
+
+    // Easing curve: Starts strong and fades out
+    _decayAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCirc),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant BloomBorder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.pulseTick != oldWidget.pulseTick) {
+      // Fire the rhythmic decay!
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _BloomPainter(
-        color: bloomColor,
-        radius: borderRadius,
-        strokeWidth: strokeWidth,
-        blurRadius: blurRadius,
-      ),
-      child: child,
+    return AnimatedBuilder(
+      animation: _decayAnimation,
+      builder: (context, child) {
+        // Compute active properties based on physical decay
+        final activeBlur = widget.blurRadius + (_decayAnimation.value * 12.0); // Spike bloom
+        final activeAlpha = 50 + (_decayAnimation.value * 200).toInt(); // 50 to 250 opacity
+
+        return CustomPaint(
+          painter: _BloomPainter(
+            color: widget.bloomColor.withAlpha(activeAlpha),
+            radius: widget.borderRadius,
+            strokeWidth: widget.strokeWidth + (_decayAnimation.value * 2.0), // Slight stroke thickening
+            blurRadius: activeBlur,
+          ),
+          child: widget.child,
+        );
+      },
     );
   }
 }
@@ -50,18 +98,18 @@ class _BloomPainter extends CustomPainter {
 
     // 1. Draw the Bloom (Glow)
     final glowPaint = Paint()
-      ..color = color.withAlpha(150) // Adjust opacity for "glow" feel
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurRadius);
     
     canvas.drawRRect(rrect, glowPaint);
 
-    // 2. Draw the Sharp 1px Border
+    // 2. Draw the Sharp 1px Border (Opaque core)
     final strokePaint = Paint()
-      ..color = color
+      ..color = color.withAlpha(255) // Keep core solid
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+      ..strokeWidth = 1.0; 
     
     canvas.drawRRect(rrect, strokePaint);
   }

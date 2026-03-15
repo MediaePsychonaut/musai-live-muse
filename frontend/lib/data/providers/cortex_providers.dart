@@ -20,6 +20,7 @@ class LiveStreamState {
   final double violinResonance;
   final double aiResonance;
   final double euteOutputAmplitude; // Native RMS
+  final int pulseTick; // Oboe Native Downbeat
 
   LiveStreamState({
     required this.status,
@@ -30,6 +31,7 @@ class LiveStreamState {
     this.violinResonance = 0.0,
     this.aiResonance = 0.0,
     this.euteOutputAmplitude = 0.0,
+    this.pulseTick = 0,
   });
 
   LiveStreamState copyWith({
@@ -41,6 +43,7 @@ class LiveStreamState {
     double? violinResonance,
     double? aiResonance,
     double? euteOutputAmplitude,
+    int? pulseTick,
   }) {
     return LiveStreamState(
       status: status ?? this.status,
@@ -51,6 +54,7 @@ class LiveStreamState {
       violinResonance: violinResonance ?? this.violinResonance,
       aiResonance: aiResonance ?? this.aiResonance,
       euteOutputAmplitude: euteOutputAmplitude ?? this.euteOutputAmplitude,
+      pulseTick: pulseTick ?? this.pulseTick,
     );
   }
 }
@@ -61,6 +65,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   PitchDetector? _pitchDetector;
   StreamSubscription? _pitchSubscription;
   StreamSubscription? _telemetrySubscription;
+  StreamSubscription? _pulseSubscription;
   Timer? _stateThrottleTimer;
   final _audioOutput = AudioOutputService();
   bool _connecting = false;
@@ -161,6 +166,16 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         latestEuteAmplitude = rms;
       });
 
+      // [V0.9] Listen to native Oboe ticks and bypass governor for immediate synchrony
+      _pulseSubscription = _audioOutput.pulseStream.listen((tick) {
+        final currentState = state.value;
+        if (currentState != null) {
+          state = AsyncValue.data(currentState.copyWith(
+            pulseTick: currentState.pulseTick + 1,
+          ));
+        }
+      });
+
       // [UNIFIED-GOVERNOR] Single 60ms State Frame-Pump (~16.6 FPS)
       _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
         final currentState = state.value;
@@ -182,8 +197,24 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         numChannels: 1,
       ));
 
+      // Throttling counters for Metadata Injection
+      int frameCounter = 0;
+
       _audioSubscription = recorder.audioStream.listen((frame) {
-        _service?.sendAudioFrame(frame);
+        frameCounter++;
+        
+        // [METADATA-INJECTION] Ground Truth.
+        // The recorder emits frames based on buffer size. 
+        // We throttle text payload injection to prevent context bloat.
+        String? metadataPayload;
+        if (frameCounter >= 20) { // Inject approx every 20 chunks
+          frameCounter = 0;
+          if (latestPitchResult != null && latestPitchResult!.volume > 0.05) {
+            metadataPayload = "f0: ${latestPitchResult!.pitch.toStringAsFixed(1)}Hz | cents: ${latestPitchResult!.centsDeviation.toStringAsFixed(1)}";
+          }
+        }
+
+        _service?.sendAudioFrame(frame, metadata: metadataPayload);
         
         // Push frame to Isolate for high-performance analysis
         _pitchDetector?.processFrame(frame, 16000);
@@ -204,6 +235,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _audioSubscription?.cancel();
     _pitchSubscription?.cancel();
     _telemetrySubscription?.cancel();
+    _pulseSubscription?.cancel();
     _stateThrottleTimer?.cancel();
     _stateThrottleTimer = null;
     _pitchDetector?.dispose();

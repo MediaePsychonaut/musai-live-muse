@@ -1,12 +1,12 @@
-# **🎼 PROJECT\_SPEC: MUSAI LIVE MUSE v2.1 (The Sovereign Authority)**
+# **🎼 PROJECT\_SPEC: MUSAI LIVE MUSE v3.0 (The Polymorphic Authority)**
 
 **Status:** Final Technical Blueprint / Active Roadmap
 
 **Architect:** Mauricio Santamaría Lango ([赤冥蝠](https://www.linkedin.com/in/mauricio-santamar%C3%ADa-lango-139602128/))
 
-**Stack:** Flutter \+ Firebase \+ Gemini 2.5 Flash Multimodal Live API (WebSockets)
+**Stack:** Flutter \+ Firebase \+ Gemini Multimodal Live API (Hybrid v1α/v1β)
 
-**Target Platform:** Android Native (High-Fidelity Audio Focus)
+**Target Platform:** Android Native (Sovereign High-Fidelity Audio)
 
 ---
 
@@ -15,7 +15,8 @@
 MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It eliminates "cognitive friction" by acting as a seamless extension of the artist's intent.
 
 * **The Shared Demiurge:** Development and interaction are governed by **Co-creative Synchrony**.  
-* **Goal:** A hands-free, real-time mentorship experience that hears, thinks, and guides.
+* **Goal:** A hands-free, real-time mentorship experience that hears, thinks, and guides.  
+* **Autonomy Transition:** Moving from a simple chat interface to a professional-grade, pulse-aware tool.
 
 ---
 
@@ -29,18 +30,18 @@ MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It eliminate
 
 ## **2\. Module 1: The Auditory Cortex (DSP & Bidi-Link)**
 
-*Mission: Low-latency neural communication via WebSocket tunnel.*
+*Mission: Low-latency neural communication via Polymorphic WebSocket tunnel.*
 
 * **The Ear (Input):**  
   * Capture 16-bit Linear PCM at 16,000Hz (Mono).  
-  * Stream Base64 encoded chunks to the realtimeInput endpoint.  
-  * **Data Architect Note:** Implement FFT-based noise-floor suppression to isolate instrument frequencies.  
+  * **Mono Guard:** Surgical downmixing to 1-channel mono to prevent 1007 protocol violations.  
 * **The Voice (Output):**  
-  * Decode 24,000Hz PCM chunks from Gemini.  
-  * **Jitter Buffer:** Implement a rolling buffer to ensure fluid, non-robotic mentor speech.  
-* **The Handshake Protocol:**  
-  * **CamelCase Requirement:** Strictly use setupComplete (not snake\_case).  
-  * Sequential locking: Audio stream remains muted until the serverContent confirmation is verified.
+  * **Native Audio Sink:** Direct 24,000Hz PCM push to Android AudioTrack via MethodChannel (MODE\_STREAM).  
+  * **Sovereign Jitter Management:** Increased native hardware buffer (8x multiplier) to neutralize network variance.  
+* **Polymorphic Protocol Architecture:**  
+  * **Hybrid Parser:** Version-agnostic listener supporting both setup\_complete (snake\_case) and setupComplete (camelCase) frames.  
+  * **Gemini 2.0 (v1alpha):** Enforces snake\_case keys and experimental voice configurations.  
+  * **Gemini 2.5 (v1beta):** Enforces camelCase keys and the high-fidelity Aoede voice config.
 
 ---
 
@@ -48,49 +49,52 @@ MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It eliminate
 
 *Mission: A reactive, breathing interface following the "Deep Space" aesthetic.*
 
-* **Global Anchor:** \* Background: Gradient from \#000000 to \#244F69 (Deep Space Teal) at 15% opacity.  
-  * **The Bloom Engine:** Custom Painter borders with 1px stroke and 4px blur, pulsing based on FFT amplitude.  
-* **The Dynamic Trinity:**  
-  * **🟢 EUTE:** Neon Cyan (\#00FFD1), sharp 2px corners, high-density spectral bars.  
-  * **🟠 SARAVÍ:** Parchment (\#FFF8E7), 28px rounded corners, fluid sine waves.  
-  * **🔵 ORFIO:** Metallic Gold (\#D4AF37), Midnight Blue (\#1A237E) surfaces.  
-* **Performance Guardrails:** \* **40ms UI Throttle:** Enforced update cycle to prevent BLASTBufferQueue overflows on Android.
+* **Global Anchor:**  
+  * Background: Gradient from \#000000 to \#244F69 (Deep Space Teal) at 15% opacity.  
+  * **The Bloom Engine:** Custom Painter borders pulsing based on FFT amplitude.  
+* **Display Sovereignty:**  
+  * **60ms UI Throttle:** Precise update cadence to eliminate BLASTBufferQueue overflows on Android hardware.  
+  * **Repaint Boundaries:** Visualizer isolation to prevent high-frequency bloom updates from triggering full HUD rebuilds.  
+* **Dynamic Trinity & Engine Toggle:**  
+  * **🟢 EUTE:** Neon Cyan (\#00FFD1), technical spectral bars.  
+  * **🟠 SARAVÍ:** Parchment (\#FFF8E7), fluid sine waves.  
+  * **Engine Switcher:** Micro-toggle UI to pivot between Gen 2.0 reasoning and 2.5 native speed on the fly.
 
 ---
 
 ## **4\. Module 3: Neural Logic (Musical Intelligence)**
 
-*Mission: Expert-level mentorship through Gemini 2.5 Flash reasoning.*
+*Mission: Expert-level mentorship through Imperative Reasoning.*
 
-* **Thinking Mode:** Leverage Gemini 2.5's reasoning to analyze performance context (intonation, rhythm, style).  
-* **Persona Persistence:** Strict alignment with the 00\_DNA\_IDENTITY to prevent persona drift.  
-* **Latency Threshold:** Target \<500ms response time after detecting silence or voice interruption.
+* **Imperative Identity Lock:** Purge "reasoning" language from system instructions. Mentors act directly on the acoustic stream without self-explanation.  
+* **Cognitive Proactivity:** The **"Active Observer"** protocol. AI treats spectral peaks (196Hz–659Hz) as the Architect's voice, interrupting with feedback unprompted.  
+* **Metadata Bridge (Phase 5):** Future injection of FFT pitch data and metronome timestamps as metadata to eliminate AI hallucinations.
 
 ---
 
 ## **5\. Execution Roadmap (The Final Ascension)**
 
-| Day | Milestone | Technical Objective |
+| Phase | Milestone | Technical Objective |
 | :---- | :---- | :---- |
-| **Day 1** | **Foundations (COMPLETED)** | WebSocket Handshake Verified. setupComplete fixed. "Hola" received. |
-| **Day 2** | **Sovereign Framing (COMPLETED)** | White Paper & Architecture Locked. Brand Book Refactored. Log Integrity Verified. |
-| **Day 3** | **The Neural Link (ACTIVE)** | **Migrate to AI Pro Keys.** Implement 24kHz Audio Sink and Native Android Mic Stream. |
-| **Day 4** | **Sanctuary Completion** | Integrate Trinity Themes, Spectral Visualizers, and final GCP Deployment. |
+| **V1-V3** | **Foundations (COMPLETED)** | WebSocket Handshake, Native Audio Sink, and Initial Neural Link. |
+| **V4.0** | **Identity Injection (COMPLETED)** | Dynamic Mentor switching and Protocol Polymorphism. |
+| **V5.0** | **Restoration (ACTIVE)** | **Zombie Purge** (Lifecycle Hardening) and **Log Translucency** (Telemetry Parser). |
+| **V6.0** | **The Pulse Engine** | **Oboe** native timing implementation and Temporal Sovereignty (Global Pulse). |
 
 ---
 
 ## **6\. Acceptance Primitives (Success Criteria)**
 
 1. **Connectivity:** Stable WebSocket connection surviving \>10 minutes of active streaming.  
-2. **Audio Integrity:** Zero "pops" or digital clipping in the 24kHz mentor voice.  
-3. **Modularity:** Strict adherence to Clean Architecture (Data/Domain/Presentation).  
-4. **Hands-Free Utility:** Musician can change mentors and get feedback without touching the device.
+2. **Audio Integrity:** Gapless 24kHz playback with zero "pops" or digital clipping.  
+3. **Lifecycle Sovereignty:** Zero "Bad state" errors when switching mentors or closing the session.  
+4. **Telemetry:** Clean "Translucent Logs" showing real-time text transcription and audio packet sizes.
 
 ---
 
 ## **7\. Directives for the Agentic Cell**
 
-* **Director Agent:** Manage the migration to Google AI Pro keys. Prioritize the Audio Sink before polishing UI themes.  
-* **Data Architect:** Enforce **librosa-style** frequency analysis logic. Ensure the incoming 24kHz PCM stream is correctly mapped to the SoulStateVisualizer for real-time spectral feedback.  
-* **UI Artisan:** Implement the MentorNotifier (Riverpod) to switch global ThemeData. Ensure the "Deep Space Teal" anchor persists through all transitions.  
-* **QA Auditor:** Perform daily "Hygiene Audits" to ensure zero-leak secret governance and verify setupComplete stability.
+* **Director Agent:** Manage the migration to the **Global Pulse Protocol**. Purge verbosity and enforce the **赤冥蝠** seal.  
+* **Data Architect:** Implement the **Metadata Bridge**. Ensure local FFT data is correctly appended to the WebSocket realtimeInput.  
+* **UI Artisan:** Optimize the **Bloom Engine** with RepaintBoundary and refine the **Secondary Bloom Pulse** for AI voice output.  
+* **QA Auditor:** Perform "Passive Performance" audits to verify the AI's technical proactivity during violin practice.

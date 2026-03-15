@@ -9,9 +9,13 @@ class AudioOutputService {
 
   static const _channel = MethodChannel('musai.live/audio_sink');
   static const _telemetryChannel = BasicMessageChannel<dynamic>('musai.live/audio_telemetry', StandardMessageCodec());
+  static const _pulseChannel = BasicMessageChannel<dynamic>('musai.live/audio_pulse', StandardMessageCodec());
 
   final _telemetryController = StreamController<double>.broadcast();
   Stream<double> get telemetryStream => _telemetryController.stream;
+
+  final _pulseController = StreamController<int>.broadcast();
+  Stream<int> get pulseStream => _pulseController.stream;
 
   bool _initialized = false;
   
@@ -25,6 +29,12 @@ class AudioOutputService {
           _telemetryController.add(message);
         } else if (message is int) {
           _telemetryController.add(message.toDouble());
+        }
+        return null;
+      });
+      _pulseChannel.setMessageHandler((message) async {
+        if (message is int) {
+          _pulseController.add(message);
         }
         return null;
       });
@@ -55,5 +65,6 @@ class AudioOutputService {
     _channel.invokeMethod('dispose');
     _initialized = false;
     _telemetryController.close();
+    _pulseController.close();
   }
 }

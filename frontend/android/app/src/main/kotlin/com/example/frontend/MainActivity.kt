@@ -22,6 +22,15 @@ class MainActivity : FlutterActivity() {
     private var telemetryChannel: BasicMessageChannel<Any>? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    companion object {
+        init {
+            System.loadLibrary("oboe_pulse_engine")
+        }
+    }
+
+    external fun startPulseEngine(bpm: Double)
+    external fun stopPulseEngine()
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         // [MISSION 1] Early initialization of Audio SINK
@@ -56,6 +65,23 @@ class MainActivity : FlutterActivity() {
                 }
                 "dispose" -> {
                     disposeAudioTrack()
+                    result.success(null)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.frontend/pulse_engine").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    val bpm = call.argument<Double>("bpm") ?: 60.0
+                    startPulseEngine(bpm)
+                    result.success(null)
+                }
+                "stop" -> {
+                    stopPulseEngine()
                     result.success(null)
                 }
                 else -> {

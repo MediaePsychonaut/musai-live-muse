@@ -225,7 +225,7 @@ class GeminiLiveService {
     debugPrint("MUSE_LOG: [EUTE] System Offline.");
   }
 
-  void sendAudioFrame(Uint8List frame) {
+  void sendAudioFrame(Uint8List frame, {String? metadata}) {
     if (_channel == null) return;
     try {
       // 1. Surgical Mono Downmix with explicit safety
@@ -235,6 +235,28 @@ class GeminiLiveService {
       final Map<String, dynamic> message;
       
       if (engineType == EngineType.flash20Exp) {
+        // [METADATA-INJECTION] Send numerical truth bridge to AI
+        if (metadata != null) {
+          final metadataMsg = {
+            "client_content": {
+              "turns": [
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": metadata
+                    }
+                  ]
+                }
+              ],
+              "turn_complete": false
+            }
+          };
+          if (!_isDisposed) {
+            _channel!.sink.add(jsonEncode(metadataMsg));
+          }
+        }
+
         message = {
           "realtime_input": {
             "media_chunks": [
@@ -246,6 +268,28 @@ class GeminiLiveService {
           },
         };
       } else {
+        // [METADATA-INJECTION] CamelCase format
+        if (metadata != null) {
+          final metadataMsg = {
+            "clientContent": {
+              "turns": [
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": metadata
+                    }
+                  ]
+                }
+              ],
+              "turnComplete": false
+            }
+          };
+          if (!_isDisposed) {
+            _channel!.sink.add(jsonEncode(metadataMsg));
+          }
+        }
+
         message = {
           "realtimeInput": {
             "mediaChunks": [
