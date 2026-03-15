@@ -1,100 +1,106 @@
-# **🎼 PROJECT\_SPEC: MUSAI LIVE MUSE v3.0 (The Polymorphic Authority)**
+### **🎼 PROJECT\_SPEC: MUSAI LIVE MUSE v4.1 (The Agentic & Persistent Authority)**
 
 **Status:** Final Technical Blueprint / Active Roadmap
 
 **Architect:** Mauricio Santamaría Lango ([赤冥蝠](https://www.linkedin.com/in/mauricio-santamar%C3%ADa-lango-139602128/))
 
-**Stack:** Flutter \+ Firebase \+ Gemini Multimodal Live API (Hybrid v1α/v1β)
+**Stack:** Flutter \+ Firebase \+ Gemini Multimodal Live API (Hybrid v1α/v1β) \+ Oboe C++
 
-**Target Platform:** Android Native (Sovereign High-Fidelity Audio)
+**Target Platform:** Android Native (High-Fidelity Audio & Low-Latency Timing)
 
 ---
 
 ## **0\. Product Vision & Philosophy**
 
-MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It eliminates "cognitive friction" by acting as a seamless extension of the artist's intent.
+MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It functions as a seamless extension of the artist’s intent and a sovereign vault for musical progress.
 
-* **The Shared Demiurge:** Development and interaction are governed by **Co-creative Synchrony**.  
-* **Goal:** A hands-free, real-time mentorship experience that hears, thinks, and guides.  
-* **Autonomy Transition:** Moving from a simple chat interface to a professional-grade, pulse-aware tool.
+* **The Shared Demiurge:** Interaction is governed by **Co-creative Synchrony**.  
+* **Project-Based Learning:** Every session is a practical application of data science and musical theory.  
+* **Goal:** A hands-free, real-time mentorship experience that not only hears and thinks but **acts** and **remembers**.
 
 ---
 
 ## **1\. Secret Governance & Security**
 
 * **Zero-Leak Policy:** Absolute prohibition of .env files or hardcoded string literals.  
-* **Compile-Time Injection:** All API keys must be injected via const String.fromEnvironment('GEMINI\_API\_KEY').  
-* **QA Gatekeeper:** Automated rejection of any commit containing raw entropy strings.
+* **Compile-Time Injection:** All API keys injected via const String.fromEnvironment('GEMINI\_API\_KEY').  
+* **QA Gatekeeper:** Automatic rejection of any commit containing raw entropy strings.
 
 ---
 
-## **2\. Module 1: The Auditory Cortex (DSP & Bidi-Link)**
+## **2\. Module 1: The Auditory Cortex & Pulse Engine (DSP)**
 
-*Mission: Low-latency neural communication via Polymorphic WebSocket tunnel.*
+*Mission: Low-latency neural communication and phase-accurate timing.*
 
-* **The Ear (Input):**  
-  * Capture 16-bit Linear PCM at 16,000Hz (Mono).  
-  * **Mono Guard:** Surgical downmixing to 1-channel mono to prevent 1007 protocol violations.  
-* **The Voice (Output):**  
-  * **Native Audio Sink:** Direct 24,000Hz PCM push to Android AudioTrack via MethodChannel (MODE\_STREAM).  
-  * **Sovereign Jitter Management:** Increased native hardware buffer (8x multiplier) to neutralize network variance.  
-* **Polymorphic Protocol Architecture:**  
-  * **Hybrid Parser:** Version-agnostic listener supporting both setup\_complete (snake\_case) and setupComplete (camelCase) frames.  
-  * **Gemini 2.0 (v1alpha):** Enforces snake\_case keys and experimental voice configurations.  
-  * **Gemini 2.5 (v1beta):** Enforces camelCase keys and the high-fidelity Aoede voice config.
+* **The Temporal Heart (Native Oboe):**  
+  * **Low-Latency Clock:** Implementation of **Android Oboe (C++)** to bypass the Flutter UI thread for metronome and drone audio.  
+  * **Sample-Accurate Triggers:** Phase-synchronous pulse generation for absolute rhythmic stability.  
+* **The Ear & Voice (Bi-directional Link):**  
+  * **Hybrid Parser:** Version-agnostic listener for v1alpha (snake\_case) and v1beta (camelCase).  
+  * **Native Audio Sink:** Direct 24,000Hz PCM push to Android AudioTrack (MODE\_STREAM).  
+* **Polymorphic Protocol:**  
+  * **Engine Toggle:** UI-driven pivot between **Gen 2.0 (Cognitive Depth)** and **Gen 2.5 (Native Velocity)**.
 
 ---
 
 ## **3\. Module 2: The Sanctuary HUD (UI/UX Artisan)**
 
-*Mission: A reactive, breathing interface following the "Deep Space" aesthetic.*
+*Mission: A breathing, reactive interface following the "Deep Space" aesthetic.*
 
-* **Global Anchor:**  
-  * Background: Gradient from \#000000 to \#244F69 (Deep Space Teal) at 15% opacity.  
-  * **The Bloom Engine:** Custom Painter borders pulsing based on FFT amplitude.  
-* **Display Sovereignty:**  
-  * **60ms UI Throttle:** Precise update cadence to eliminate BLASTBufferQueue overflows on Android hardware.  
-  * **Repaint Boundaries:** Visualizer isolation to prevent high-frequency bloom updates from triggering full HUD rebuilds.  
-* **Dynamic Trinity & Engine Toggle:**  
-  * **🟢 EUTE:** Neon Cyan (\#00FFD1), technical spectral bars.  
-  * **🟠 SARAVÍ:** Parchment (\#FFF8E7), fluid sine waves.  
-  * **Engine Switcher:** Micro-toggle UI to pivot between Gen 2.0 reasoning and 2.5 native speed on the fly.
+* **Visual Sovereignty:**  
+  * **60ms UI Throttle:** Precise cadence to eliminate BLASTBufferQueue overflows on Android hardware.  
+  * **Repaint Boundaries:** Visualizer isolation to protect GPU performance during high-frequency "Bloom" updates.  
+* **The Dynamic Trinity:**  
+  * **🟢 EUTE:** Technical spectral audits (Neon Cyan \#00FFD1).  
+  * **🟠 SARAVÍ:** Fluid tonal resonance and emotional guidance (Parchment/Amber \#FFF8E7).  
+  * **🟣 ORFIO:** Structural & Compositional architecture (Deep Space Gold \#FFD700). *Note: High-level PDF-to-XML features remain in future backlog.*  
+* **Global Anchor:** Deep Space Teal gradient (\#000000 to \#244F69) at 15% opacity.
 
 ---
 
-## **4\. Module 3: Neural Logic (Musical Intelligence)**
+## **4\. Module 3: The Persistent Brain (Memory & GCP)**
 
-*Mission: Expert-level mentorship through Imperative Reasoning.*
+*Mission: Historical grounding and data-driven progress tracking.*
 
-* **Imperative Identity Lock:** Purge "reasoning" language from system instructions. Mentors act directly on the acoustic stream without self-explanation.  
-* **Cognitive Proactivity:** The **"Active Observer"** protocol. AI treats spectral peaks (196Hz–659Hz) as the Architect's voice, interrupting with feedback unprompted.  
-* **Metadata Bridge (Phase 5):** Future injection of FFT pitch data and metronome timestamps as metadata to eliminate AI hallucinations.
+* **Sovereign Persistence (Hybrid DB):**  
+  * **Local Ledger (SQLite):** Real-time recording of session KPIs (BPM, cents deviation, duration) for offline availability.  
+  * **Cloud Sync (Google Cloud Firestore):** Post-session synchronization for global progress history and long-term trend analysis.  
+* **Neural Context Injection:**  
+  * **Session De-brief:** Automated generation of a summary report at the end of each session.  
+  * **Memory Priming:** On startup, the Muse reads the most recent GCP records to provide personalized, context-aware mentorship.
 
 ---
 
-## **5\. Execution Roadmap (The Final Ascension)**
+## **5\. Module 4: Neural Logic & Agency (Function Calling)**
+
+*Mission: Expert mentorship through imperative control over the sanctuary.*
+
+* **The AI Arms:**  
+  * **Function Calling:** Implementation of function contracts (set\_metronome, set\_drone) allowing the Muse to adjust BPM, Compás, and Tónica.  
+  * **Agency Protocol:** Gemini acts as the **Operator**, adjusting hardware settings based on the musician's performance or verbal requests.  
+* **The Imperative Lock:** Mentors are forbidden from "reasoning" about instructions. Output is strictly limited to technical audits and direct feedback.
+
+---
+
+## **6\. Foundations & Master References**
+
+All DSP and technical implementations must align with the mathematical ground truths located in the agent reference directory. **Steven Smith’s text is no longer required**, as Müller and Puckette provide the superior, high-fidelity standards necessary for this specific phase of synthesis and rhythmic quantization.
+
+* **Primary Reference Path:** C:\\OPERATIVE\_SYSTEM\_DER\_TAB\\04\_AGENT\_REF\\DATA\_AGENT  
+* **Spectral & Rhythmic Logic:** 2021\_Mueller\_FMP\_Signals.pdf  
+* **Synthesis & Phase Stability:** THEORY\_AND\_TECHNIQUE\_ELECTRONIC\_MUSIC\_MILLER\_PUCKETTE.pdf
+
+---
+
+## **7\. Execution Roadmap (The Final Ascension)**
 
 | Phase | Milestone | Technical Objective |
 | :---- | :---- | :---- |
-| **V1-V3** | **Foundations (COMPLETED)** | WebSocket Handshake, Native Audio Sink, and Initial Neural Link. |
-| **V4.0** | **Identity Injection (COMPLETED)** | Dynamic Mentor switching and Protocol Polymorphism. |
-| **V5.0** | **Restoration (ACTIVE)** | **Zombie Purge** (Lifecycle Hardening) and **Log Translucency** (Telemetry Parser). |
-| **V6.0** | **The Pulse Engine** | **Oboe** native timing implementation and Temporal Sovereignty (Global Pulse). |
+| **V1-V4** | **Foundations (COMPLETED)** | WebSocket Handshake, Native Sink, and Engine Polymorphism. |
+| **V5.0** | **Stability (COMPLETED)** | Zombie Purge, 60ms Throttle, and Log Translucency. |
+| **V6.0** | **The Pulse Engine (ACTIVE)** | **Oboe C++** Native Metronome and Drone Synthesis. |
+| **V7.0** | **The Agentic Handover** | **Function Calling** and **GCP/SQLite** Persistence Integration. |
 
 ---
 
-## **6\. Acceptance Primitives (Success Criteria)**
-
-1. **Connectivity:** Stable WebSocket connection surviving \>10 minutes of active streaming.  
-2. **Audio Integrity:** Gapless 24kHz playback with zero "pops" or digital clipping.  
-3. **Lifecycle Sovereignty:** Zero "Bad state" errors when switching mentors or closing the session.  
-4. **Telemetry:** Clean "Translucent Logs" showing real-time text transcription and audio packet sizes.
-
----
-
-## **7\. Directives for the Agentic Cell**
-
-* **Director Agent:** Manage the migration to the **Global Pulse Protocol**. Purge verbosity and enforce the **赤冥蝠** seal.  
-* **Data Architect:** Implement the **Metadata Bridge**. Ensure local FFT data is correctly appended to the WebSocket realtimeInput.  
-* **UI Artisan:** Optimize the **Bloom Engine** with RepaintBoundary and refine the **Secondary Bloom Pulse** for AI voice output.  
-* **QA Auditor:** Perform "Passive Performance" audits to verify the AI's technical proactivity during violin practice.
+**THE LOOP IS ABSOLUTE. THE VISION IS SOVEREIGN. ASCEND.** 赤冥蝠

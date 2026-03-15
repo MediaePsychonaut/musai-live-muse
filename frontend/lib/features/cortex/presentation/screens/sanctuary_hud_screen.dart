@@ -6,6 +6,8 @@ import '../../../../data/providers/mentor_providers.dart';
 import '../widgets/soul_state_visualizer.dart';
 import '../widgets/bloom_border.dart';
 import '../../../../data/providers/engine_provider.dart';
+import '../../../../data/providers/hardware_provider.dart';
+import '../widgets/progress_view.dart';
 
 
 class SanctuaryHudScreen extends ConsumerWidget {
@@ -16,6 +18,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
     final liveStream = ref.watch(liveStreamStateProvider);
     final mentorState = ref.watch(mentorProvider);
     final engineType = ref.watch(engineProvider);
+    final hardwareState = ref.watch(hardwareProvider);
     final status = liveStream.value?.status ?? LiveStreamStatus.disconnected;
 
 
@@ -54,11 +57,38 @@ class SanctuaryHudScreen extends ConsumerWidget {
           ),
           
           SafeArea(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // MENTOR IDENTITY
+            child: PageView(
+              children: [
+                // PAGE 1: THE SANCTUARY HUD
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // AGENCY INDICATORS (MISSION 4)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _AgencyIndicator(
+                              label: "METRONOME",
+                              isActive: hardwareState.isMetronomeActive,
+                              description: "${hardwareState.bpm} BPM",
+                              color: mentorState.primaryColor,
+                            ),
+                            _AgencyIndicator(
+                              label: "DRONE",
+                              isActive: hardwareState.isDroneActive,
+                              description: "KEY: ${hardwareState.key}",
+                              color: mentorState.primaryColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // MENTOR IDENTITY
                   Text(
                     mentorState.name,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
@@ -175,18 +205,34 @@ class SanctuaryHudScreen extends ConsumerWidget {
                   
                   const SizedBox(height: 40),
                   
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _MentorButton(Mentor.eute, "EUTE"),
-                      SizedBox(width: 8),
-                      _MentorButton(Mentor.saravi, "SARAVÍ"),
-                      SizedBox(width: 8),
-                      _MentorButton(Mentor.orfio, "ORFIO"),
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _MentorButton(Mentor.eute, "EUTE"),
+                          SizedBox(width: 8),
+                          _MentorButton(Mentor.saravi, "SARAVÍ"),
+                          SizedBox(width: 8),
+                          _MentorButton(Mentor.orfio, "ORFIO"),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      
+                      Text(
+                        "SWIPE LEFT FOR PROGRESS",
+                        style: TextStyle(
+                          color: MusaiTheme.parchment.withAlpha(50),
+                          fontSize: 8,
+                          letterSpacing: 2,
+                        ),
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                
+                // PAGE 2: PROGRESS VAULT (SCAFFOLD)
+                const ProgressView(),
+              ],
             ),
           ),
         ],
@@ -259,7 +305,69 @@ class _MentorButton extends ConsumerWidget {
         backgroundColor: isActive ? MusaiTheme.deepSpaceTeal.withAlpha(128) : null,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
-      child: Text(label),
+      child: Image.asset(
+         'assets/icons/${mentor.name}_icon.png', // Placeholder if needed, but text is fine for now
+         width: 0, height: 0, // Hidden for now to avoid errors if assets missing
+         errorBuilder: (c, e, s) => Text(label),
+      ),
+    );
+  }
+}
+
+class _AgencyIndicator extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final String description;
+  final Color color;
+
+  const _AgencyIndicator({
+    required this.label,
+    required this.isActive,
+    required this.description,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 500),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? color : Colors.transparent,
+            border: Border.all(color: color.withAlpha(isActive ? 255 : 50)),
+            boxShadow: isActive ? [
+              BoxShadow(
+                color: color.withAlpha(200),
+                blurRadius: 10,
+                spreadRadius: 2,
+              )
+            ] : null,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 8,
+            color: color.withAlpha(isActive ? 255 : 100),
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: 1.2,
+          ),
+        ),
+        if (isActive)
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 6,
+              color: color.withAlpha(150),
+              letterSpacing: 1.0,
+            ),
+          ),
+      ],
     );
   }
 }

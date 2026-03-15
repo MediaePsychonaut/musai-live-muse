@@ -8,6 +8,9 @@ import '../../core/secrets/secret_manager.dart';
 import '../services/gemini_live_service.dart';
 import 'mentor_providers.dart';
 import 'engine_provider.dart';
+import 'hardware_provider.dart';
+import '../repositories/practice_ledger.dart';
+import '../services/session_debrief_service.dart';
 
 enum LiveStreamStatus { disconnected, connecting, connected, error }
 
@@ -69,6 +72,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   Timer? _stateThrottleTimer;
   final _audioOutput = AudioOutputService();
   bool _connecting = false;
+  
+  final PracticeLedger _practiceLedger = PracticeLedger();
+  int? _activeSessionId;
 
   @override
   FutureOr<LiveStreamState> build() {
@@ -99,11 +105,38 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       // Initialize SoLoud for Output
       await _audioOutput.init();
       
-      final currentMentor = ref.read(mentorProvider);
       final currentEngine = ref.read(engineProvider);
+      final currentEngineName = currentEngine.toString().split('.').last;
+
+      _activeSessionId = await _practiceLedger.startSession(currentEngineName);
+      final summary = await _practiceLedger.getLastSessionSummary();
+      final currentMentorData = ref.read(mentorProvider);
+      
+      String extendedInstruction = currentMentorData.systemInstruction;
+      if (summary != null) {
+        final avgCents = summary['avg_cents'] as double;
+        extendedInstruction += "\n\n<CONTEXT_PROTOCOL>\n";
+        extendedInstruction += "USER PAST SESSION AVERAGE DEVIATION: ${avgCents.toStringAsFixed(2)} CENTS.\n";
+        if (avgCents > 15.0) {
+           extendedInstruction += "DIRECTIVE: THE USER EXHIBITED SIGNIFICANT PITCH DRIFT IN THE LAST SESSION. PRIORITIZE TIGHT INTONATION FEEDBACK.\n";
+        } else {
+           extendedInstruction += "DIRECTIVE: THE USER WAS INTONATIONALLY STABLE IN THE LAST SESSION. FOCUS ON RHYTHMIC AND EXPRESSIVE TIMING.\n";
+        }
+        extendedInstruction += "</CONTEXT_PROTOCOL>";
+      }
+
+      final primedMentor = MentorState(
+        activeMentor: currentMentorData.activeMentor,
+        name: currentMentorData.name,
+        role: currentMentorData.role,
+        primaryColor: currentMentorData.primaryColor,
+        borderRadius: currentMentorData.borderRadius,
+        voiceName: currentMentorData.voiceName,
+        systemInstruction: extendedInstruction,
+      );
 
       _service?.disconnect();
-      _service = GeminiLiveService(apiKey, recorder, currentMentor, currentEngine);
+      _service = GeminiLiveService(apiKey, recorder, primedMentor, currentEngine);
 
       await _service!.connect(
         onMessage: (msg) {
@@ -141,6 +174,25 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         onDone: () {
           _connecting = false;
           disconnect();
+        },
+        onHardwareCommand: (name, args) {
+          final hw = ref.read(hardwareProvider.notifier);
+          if (name == 'set_metronome') {
+            final bool active = args['active'] ?? false;
+            hw.setMetronome(active);
+            if (active) {
+              final bpm = (args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60;
+              hw.setBpm(bpm);
+            }
+          } else if (name == 'set_drone') {
+            final bool active = args['active'] ?? false;
+            hw.setDrone(active);
+            if (active) {
+              final freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
+              // Map frequency back to Key for UI display if needed, or just show freq
+              hw.setKey("${freq.toStringAsFixed(0)}Hz");
+            }
+          }
         },
       );
 
@@ -180,8 +232,15 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
         final currentState = state.value;
         if (currentState != null) {
+          final pitch = latestPitchResult?.pitch ?? currentState.pitch;
+          final cents = latestPitchResult?.centsDeviation ?? 0.0;
+          
+          if (_activeSessionId != null && pitch > 0.0) {
+             _practiceLedger.logTelemetry(_activeSessionId!, pitch, cents);
+          }
+
           state = AsyncValue.data(currentState.copyWith(
-            pitch: latestPitchResult?.pitch ?? currentState.pitch,
+            pitch: pitch,
             volume: latestPitchResult?.volume ?? currentState.volume,
             spectrum: latestPitchResult?.spectrum ?? currentState.spectrum,
             violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
@@ -246,6 +305,15 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _service?.disconnect();
     _service = null; // ZOMBIE PURGE: Hard dereference
     _audioOutput.dispose();
+    
+    if (_activeSessionId != null) {
+      _practiceLedger.endSession(_activeSessionId!).then((_) {
+        // Trigger a refresh of the vault data
+        ref.read(practiceUpdateTriggerProvider.notifier).state++;
+      });
+      _activeSessionId = null;
+    }
+    
     _connecting = false;
     
     state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.disconnected));
@@ -254,4 +322,31 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
 
 final liveStreamStateProvider = AsyncNotifierProvider<LiveStreamNotifier, LiveStreamState>(() {
   return LiveStreamNotifier();
+});
+
+// --- Progress Vault Providers ---
+
+final practiceLedgerProvider = Provider((ref) => PracticeLedger());
+
+final practiceUpdateTriggerProvider = StateProvider<int>((ref) => 0);
+
+final progressStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.watch(practiceUpdateTriggerProvider); // Watch for new sessions
+  final ledger = ref.watch(practiceLedgerProvider);
+  return await ledger.getProgressStats();
+});
+
+final recentTelemetryProvider = FutureProvider<List<double>>((ref) async {
+  ref.watch(practiceUpdateTriggerProvider); // Watch for new sessions
+  final ledger = ref.watch(practiceLedgerProvider);
+  return await ledger.getRecentSessionTelemetry();
+});
+
+final sessionDebriefProvider = FutureProvider<String?>((ref) async {
+  ref.watch(practiceUpdateTriggerProvider);
+  final summary = await ref.watch(practiceLedgerProvider).getLastSessionSummary();
+  if (summary == null) return null;
+  
+  final debriefService = SessionDebriefService();
+  return await debriefService.generateDebrief(summary);
 });

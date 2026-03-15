@@ -8,6 +8,7 @@ import '../../core/audio/audio_recorder.dart';
 import '../../core/net/channel_factory.dart';
 import '../providers/mentor_providers.dart';
 import '../providers/engine_provider.dart';
+import '../../core/audio/pulse_engine.dart';
 
 class GeminiLiveService {
   final String apiKey;
@@ -40,6 +41,7 @@ class GeminiLiveService {
     required Function(Map<String, dynamic>) onMessage,
     required Function(Object) onError,
     required Function() onDone,
+    Function(String name, Map<String, dynamic> args)? onHardwareCommand,
   }) async {
     debugPrint("MUSE_LOG: [EUTE] Initializing high-fidelity audio sync...");
 
@@ -99,6 +101,11 @@ class GeminiLiveService {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
                   for (final part in parts) {
+                    final functionCall = part['function_call'] ?? part['functionCall'];
+                    if (functionCall != null) {
+                      _handleFunctionCall(functionCall, onHardwareCommand);
+                    }
+
                     final inlineData = part['inline_data'] ?? part['inlineData'];
                     if (inlineData != null) {
                       final data = inlineData['data'];
@@ -171,6 +178,52 @@ class GeminiLiveService {
                   },
                 ],
               },
+              "tools": [
+                {
+                  "function_declarations": [
+                    {
+                      "name": "set_metronome",
+                      "description": "Starts or stops the native metronome pulse.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "bpm": {
+                            "type": "NUMBER",
+                            "description": "The desired Beats Per Minute (BPM)"
+                          },
+                          "signature": {
+                            "type": "INTEGER",
+                            "description": "The time signature numerator (e.g., 4 for 4/4 time)"
+                          },
+                          "active": {
+                            "type": "BOOLEAN",
+                            "description": "True to start the metronome, False to stop it"
+                          }
+                        },
+                        "required": ["bpm", "active"]
+                      }
+                    },
+                    {
+                      "name": "set_drone",
+                      "description": "Starts or stops the native background drone synthesizer.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "frequency": {
+                            "type": "NUMBER",
+                            "description": "The target drone frequency in Hz"
+                          },
+                          "active": {
+                            "type": "BOOLEAN",
+                            "description": "True to start the drone, False to stop it"
+                          }
+                        },
+                        "required": ["frequency", "active"]
+                      }
+                    }
+                  ]
+                }
+              ]
             },
           };
         } else {
@@ -192,6 +245,52 @@ class GeminiLiveService {
                   },
                 ],
               },
+              "tools": [
+                {
+                  "functionDeclarations": [
+                    {
+                      "name": "set_metronome",
+                      "description": "Starts or stops the native metronome pulse.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "bpm": {
+                            "type": "NUMBER",
+                            "description": "The desired Beats Per Minute (BPM)"
+                          },
+                          "signature": {
+                            "type": "INTEGER",
+                            "description": "The time signature numerator (e.g., 4 for 4/4 time)"
+                          },
+                          "active": {
+                            "type": "BOOLEAN",
+                            "description": "True to start the metronome, False to stop it"
+                          }
+                        },
+                        "required": ["bpm", "active"]
+                      }
+                    },
+                    {
+                      "name": "set_drone",
+                      "description": "Starts or stops the native background drone synthesizer.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "frequency": {
+                            "type": "NUMBER",
+                            "description": "The target drone frequency in Hz"
+                          },
+                          "active": {
+                            "type": "BOOLEAN",
+                            "description": "True to start the drone, False to stop it"
+                          }
+                        },
+                        "required": ["frequency", "active"]
+                      }
+                    }
+                  ]
+                }
+              ]
             },
           };
         }
@@ -364,5 +463,88 @@ class GeminiLiveService {
         }
       }
     }
+  }
+
+  void _handleFunctionCall(Map<String, dynamic> functionCall, Function(String name, Map<String, dynamic> args)? onHardwareCommand) {
+    if (_isDisposed) return;
+    final name = functionCall['name'];
+    final id = functionCall['id']; // ID handles async mappings
+    final args = functionCall['args'] as Map<String, dynamic>;
+
+    debugPrint("MUSE_LOG: [EUTE] Function Call Triggered: $name(args: $args)");
+
+    final pulseEngine = PulseEngine();
+    
+    // Notify UI (Sensory Sync)
+    onHardwareCommand?.call(name, args);
+    
+    Map<String, dynamic> responsePayload = {
+      "result": "success"
+    };
+
+    if (name == 'set_metronome') {
+      final bool active = args['active'] ?? false;
+      if (active) {
+        final double bpm = (args['bpm'] is num) ? (args['bpm'] as num).toDouble() : 60.0;
+        pulseEngine.start(bpm);
+      } else {
+        pulseEngine.stop();
+      }
+    } else if (name == 'set_drone') {
+      final bool active = args['active'] ?? false;
+      if (active) {
+        final double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
+        pulseEngine.startDrone(freq);
+      } else {
+        pulseEngine.stopDrone();
+      }
+    } else {
+      responsePayload = {"result": "error", "message": "Unknown function"};
+    }
+
+    final bool isExp = engineType == EngineType.flash20Exp;
+    final Map<String, dynamic> functionResponseMsg;
+    
+    final responsePart = isExp ? {
+      "function_response": {
+        "name": name,
+        if (id != null) "id": id,
+        "response": responsePayload
+      }
+    } : {
+      "functionResponse": {
+        "name": name,
+        if (id != null) "id": id,
+        "response": responsePayload
+      }
+    };
+
+    if (isExp) {
+      functionResponseMsg = {
+        "client_content": {
+          "turns": [
+            {
+              "role": "user",
+              "parts": [responsePart]
+            }
+          ],
+          "turn_complete": true
+        }
+      };
+    } else {
+      functionResponseMsg = {
+        "clientContent": {
+          "turns": [
+            {
+              "role": "user",
+              "parts": [responsePart]
+            }
+          ],
+          "turnComplete": true
+        }
+      };
+    }
+    
+    _channel?.sink.add(jsonEncode(functionResponseMsg));
   }
 }

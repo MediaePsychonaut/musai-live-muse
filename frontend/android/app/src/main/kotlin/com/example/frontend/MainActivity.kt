@@ -30,6 +30,9 @@ class MainActivity : FlutterActivity() {
 
     external fun startPulseEngine(bpm: Double)
     external fun stopPulseEngine()
+    
+    external fun startDroneEngine(freq: Double)
+    external fun stopDroneEngine()
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +85,15 @@ class MainActivity : FlutterActivity() {
                 }
                 "stop" -> {
                     stopPulseEngine()
+                    result.success(null)
+                }
+                "startDrone" -> {
+                    val freq = call.argument<Double>("freq") ?: 440.0
+                    startDroneEngine(freq)
+                    result.success(null)
+                }
+                "stopDrone" -> {
+                    stopDroneEngine()
                     result.success(null)
                 }
                 else -> {
