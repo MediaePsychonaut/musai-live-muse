@@ -292,14 +292,19 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
 
   void disconnect() {
     _audioSubscription?.cancel();
+    _audioSubscription = null;
     _pitchSubscription?.cancel();
+    _pitchSubscription = null;
     _telemetrySubscription?.cancel();
+    _telemetrySubscription = null;
     _pulseSubscription?.cancel();
+    _pulseSubscription = null;
     _stateThrottleTimer?.cancel();
     _stateThrottleTimer = null;
     _pitchDetector?.dispose();
     _pitchDetector = null;
     
+    // Stop recording first before disposing to prevent sink writes
     _service?.recorder.stop();
     _service?.recorder.dispose();
     _service?.disconnect();

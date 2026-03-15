@@ -486,17 +486,17 @@ class GeminiLiveService {
       final bool active = args['active'] ?? false;
       if (active) {
         final double bpm = (args['bpm'] is num) ? (args['bpm'] as num).toDouble() : 60.0;
-        pulseEngine.start(bpm);
+        Future.microtask(() => pulseEngine.start(bpm));
       } else {
-        pulseEngine.stop();
+        Future.microtask(() => pulseEngine.stop());
       }
     } else if (name == 'set_drone') {
       final bool active = args['active'] ?? false;
       if (active) {
         final double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
-        pulseEngine.startDrone(freq);
+        Future.microtask(() => pulseEngine.startDrone(freq));
       } else {
-        pulseEngine.stopDrone();
+        Future.microtask(() => pulseEngine.stopDrone());
       }
     } else {
       responsePayload = {"result": "error", "message": "Unknown function"};
@@ -545,6 +545,12 @@ class GeminiLiveService {
       };
     }
     
-    _channel?.sink.add(jsonEncode(functionResponseMsg));
+    if (_channel != null && !_isDisposed) {
+      try {
+        _channel!.sink.add(jsonEncode(functionResponseMsg));
+      } catch (e) {
+        debugPrint("MUSE_LOG: [EUTE] Sink Add Error (Function Response): $e");
+      }
+    }
   }
 }

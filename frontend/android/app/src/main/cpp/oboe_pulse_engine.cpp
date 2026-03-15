@@ -81,20 +81,26 @@ public:
     void startDrone(double freq) {
         mDroneFreq = freq;
         mDronePhase = 0.0;
+        
+        // Ensure stream is running
+        if (!stream) {
+            start(mBpm); // Opens stream
+            mIsPlaying = false; // Turn off tick
+        } else {
+             mSampleRate = stream->getSampleRate();
+        }
+        
         mDronePhaseIncrement = mDroneFreq / (double)mSampleRate;
         mDronePlaying = true;
-        
-        // Ensure stream is running if only drone is started
-        if (!mIsPlaying && !stream) {
-            // We start a "silent" metronome basically, or just open a stream
-            start(mBpm);
-            mIsPlaying = false; // We aren't playing the metronome
-        }
+        LOGI("Drone Engine Started: FREQ %f", mDroneFreq);
     }
 
     void stopDrone() {
         mDronePlaying = false;
-        // If metronome isn't playing either, we could stop stream, but let's keep it simple for now
+        LOGI("Drone Engine Stopped.");
+        if (!mIsPlaying && stream) {
+            stop(); // If nothing is playing, close stream
+        }
     }
 
     DataCallbackResult onAudioReady(AudioStream *oboeStream, void *audioData, int32_t numFrames) override {
