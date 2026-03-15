@@ -47,9 +47,9 @@ class GeminiLiveService {
 
       _subscription = _channel!.stream.listen(
         (data) {
-          /*debugPrint(
+          debugPrint(
             "MUSE_LOG: [EUTE] RAW RECEIVE: Type=${data.runtimeType} | Data=$data",
-          );*/
+          );
           String? rawString;
           try {
             if (data is Uint8List) {
@@ -63,10 +63,17 @@ class GeminiLiveService {
             }
 
             final decoded = jsonDecode(rawString);
-
+            if (decoded.containsKey('serverContent') ||
+                decoded.containsKey('setupComplete')) {
+              debugPrint(
+                "赤冥蝠_LOG: [INBOUND] EUTE response detected: ${rawString.substring(0, math.min(rawString.length, 50))}...",
+              );
+            }
             // [SEQUENTIAL-HANDSHAKE] Detect setupComplete (v2.1 CamelCase Spec)
             if (!setupHandled && decoded.containsKey('setupComplete')) {
-              debugPrint("MUSE_LOG: [EUTE] Setup Complete Acknowledgement Received.");
+              debugPrint(
+                "MUSE_LOG: [EUTE] Setup Complete Acknowledgement Received.",
+              );
               setupHandled = true;
               completer.complete();
             }
@@ -96,7 +103,9 @@ class GeminiLiveService {
                           // debugPrint("MUSE_LOG: [EUTE] Decoded PCM Chunk: ${pcmChunk.length} bytes");
                           onMessage({'audio_chunk': pcmChunk});
                         } catch (e) {
-                          debugPrint("MUSE_LOG: [EUTE] Base64 Decode Error: $e");
+                          debugPrint(
+                            "MUSE_LOG: [EUTE] Base64 Decode Error: $e",
+                          );
                         }
                       }
                     }
@@ -137,20 +146,18 @@ class GeminiLiveService {
         final handshake = {
           "setup": {
             "model": _model,
-            "generation_config": {
-              "response_modalities": ["AUDIO"],
-              "audio_config": {
-                "sample_rate": 16000,
-              },
-              "speech_config": {
-                "voice_config": {
-                  "prebuilt_voice_config": {
-                    "voice_name": "Aoede", // High-fidelity technical Muse
-                  },
+            "generationConfig": {
+              // <-- FIXED to camelCase
+              "responseModalities": ["AUDIO"], // <-- FIXED to UPPERCASE
+              "speechConfig": {
+                // <-- FIXED to camelCase
+                "voiceConfig": {
+                  "prebuiltVoiceConfig": {"voiceName": "Aoede"},
                 },
               },
             },
-            "system_instruction": {
+            "systemInstruction": {
+              // <-- FIXED to camelCase
               "parts": [
                 {
                   "text":
@@ -163,6 +170,7 @@ class GeminiLiveService {
         _channel!.sink.add(jsonEncode(handshake));
         debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked.");
       } catch (handshakeError) {
+        // ... existing catch logic
         debugPrint("MUSE_LOG: [EUTE] HANDSHAKE_FAILURE: $handshakeError");
         if (!completer.isCompleted) completer.completeError(handshakeError);
         rethrow;
@@ -187,15 +195,55 @@ class GeminiLiveService {
 
   void sendAudioFrame(Uint8List frame) {
     if (_channel == null) return;
+    try {
+      // 1. Surgical Mono Downmix with explicit safety
+      final processedFrame = _enforceMono(frame);
 
-    final message = {
-      "realtime_input": {
-        "media_chunks": [
-          {"mime_type": "audio/pcm;rate=16000", "data": base64Encode(frame)},
-        ],
-      },
-    };
+      // 2. Exact Schema for Gemini Live
+      final message = {
+        "realtimeInput": {
+          "mediaChunks": [
+            {
+              "mimeType": "audio/pcm;rate=16000",
+              "data": base64Encode(processedFrame),
+            },
+          ],
+        },
+      };
 
-    _channel!.sink.add(jsonEncode(message));
+      _channel!.sink.add(jsonEncode(message));
+    } catch (e, stack) {
+      // THIS WILL TELL US WHY IT IS TERMINATING
+      debugPrint("MUSE_LOG: [EUTE] PIPELINE_CRASH: $e");
+      debugPrint("MUSE_LOG: [EUTE] STACK: $stack");
+    }
+  }
+
+  Uint8List _enforceMono(Uint8List frame) {
+    // If the buffer is already mono-sized (640 bytes for 20ms @ 16kHz)
+    if (frame.length <= 640) return frame;
+
+    try {
+      final int samples = frame.length ~/ 4; // 2 bytes per sample * 2 channels
+      final monoBuffer = Uint8List(samples * 2);
+
+      // Use a more robust view that respects the Uint8List offset
+      final data = frame.buffer.asByteData(frame.offsetInBytes, frame.length);
+      final output = monoBuffer.buffer.asByteData();
+
+      for (int i = 0; i < samples; i++) {
+        // Read L/R 16-bit samples
+        int left = data.getInt16(i * 4, Endian.little);
+        int right = data.getInt16(i * 4 + 2, Endian.little);
+
+        // Downmix
+        int mono = (left + right) ~/ 2;
+        output.setInt16(i * 2, mono, Endian.little);
+      }
+      return monoBuffer;
+    } catch (e) {
+      debugPrint("MUSE_LOG: [EUTE] MONO_DOWNMIX_ERROR: $e");
+      return frame; // Fallback to raw if downmix fails
+    }
   }
 }
