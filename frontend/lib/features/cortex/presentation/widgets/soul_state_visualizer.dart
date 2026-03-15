@@ -39,6 +39,8 @@ class _SoulStateVisualizerState extends ConsumerState<SoulStateVisualizer>
     final volume = liveStream.value?.volume ?? 0.0;
     final spectrum = liveStream.value?.spectrum ?? const [];
     final resonance = liveStream.value?.violinResonance ?? 0.0;
+    final aiResonance = liveStream.value?.aiResonance ?? 0.0;
+    final euteAmplitude = liveStream.value?.euteOutputAmplitude ?? 0.0;
     final status = liveStream.value?.status ?? LiveStreamStatus.disconnected;
     final isLive = status == LiveStreamStatus.connected;
 
@@ -52,6 +54,8 @@ class _SoulStateVisualizerState extends ConsumerState<SoulStateVisualizer>
             volume: volume,
             spectrum: spectrum,
             resonance: resonance,
+            aiResonance: aiResonance,
+            euteOutputAmplitude: euteAmplitude,
             mentorColor: mentorState.primaryColor,
             resonanceColor: MusaiTheme.deepSpaceTeal,
             isLive: isLive,
@@ -67,6 +71,8 @@ class _WavePainter extends CustomPainter {
   final double volume;
   final List<double> spectrum;
   final double resonance;
+  final double aiResonance;
+  final double euteOutputAmplitude;
   final Color mentorColor;
   final Color resonanceColor;
   final bool isLive;
@@ -76,6 +82,8 @@ class _WavePainter extends CustomPainter {
     required this.volume,
     required this.spectrum,
     required this.resonance,
+    required this.aiResonance,
+    required this.euteOutputAmplitude,
     required this.mentorColor,
     required this.resonanceColor,
     required this.isLive,
@@ -93,11 +101,16 @@ class _WavePainter extends CustomPainter {
 
     // 1. DEEP SPACE RESONANCE (BLOOM ANCHOR)
     if (isLive) {
-      final bloomPaint = Paint()
-        ..color = resonanceColor.withAlpha((resonance * 180).clamp(0, 255).toInt())
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 + (resonance * 30));
+      // The Bloom responds to Musician Resonance, AI Resonance, and EUTE Output Amplitude
+      // [V0.5] Cadence Mapping: Apply a technical pulse factor to EUTE's output
+      final technicalPulse = euteOutputAmplitude * 1.5;
+      final effectiveResonance = math.max(resonance, math.max(aiResonance, technicalPulse));
       
-      canvas.drawCircle(Offset(size.width / 2, centerY), 40 + (resonance * 60), bloomPaint);
+      final bloomPaint = Paint()
+        ..color = resonanceColor.withAlpha((effectiveResonance * 200).clamp(0, 255).toInt())
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 + (effectiveResonance * 40));
+      
+      canvas.drawCircle(Offset(size.width / 2, centerY), 40 + (effectiveResonance * 80), bloomPaint);
     }
 
     // 2. SPECTRAL RESONANCE (FFT BARS)
@@ -131,6 +144,7 @@ class _WavePainter extends CustomPainter {
       final baseAmplitude = isLive ? 15.0 : 4.0;
       final surge = volume * 55.0;
       final resonanceMod = resonance * 35.0;
+      final euteMod = euteOutputAmplitude * 45.0; // Cadence mapping for gapless stream
       
       // Complex modulation from spectrum
       double fftModulation = 0.0;
@@ -139,10 +153,10 @@ class _WavePainter extends CustomPainter {
         fftModulation = spectrum[fftIndex] * 25.0;
       }
       
-      final amplitude = baseAmplitude + surge + resonanceMod + fftModulation;
+      final amplitude = baseAmplitude + surge + resonanceMod + euteMod + fftModulation;
       
       final baseFrequency = isLive ? 2.5 : 1.2;
-      final frequency = baseFrequency + (volume * 2.0) + (resonance * 1.5);
+      final frequency = baseFrequency + (volume * 2.0) + (resonance * 1.5) + (euteOutputAmplitude * 2.0);
 
       final damping = math.sin(normalizedX * math.pi);
       
@@ -157,10 +171,10 @@ class _WavePainter extends CustomPainter {
     }
 
     if (isLive) {
-      // RESONANCE GLOW: Intensifies with volume + resonance
+      // RESONANCE GLOW: Intensifies with volume + resonance + AI amplitude
       canvas.drawPath(
         path,
-        paint..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + (volume * 10) + (resonance * 8)),
+        paint..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + (volume * 10) + (resonance * 8) + (euteOutputAmplitude * 15)),
       );
     }
     
@@ -177,6 +191,8 @@ class _WavePainter extends CustomPainter {
       oldDelegate.isLive != isLive || 
       oldDelegate.volume != volume ||
       oldDelegate.resonance != resonance ||
+      oldDelegate.aiResonance != aiResonance ||
+      oldDelegate.euteOutputAmplitude != euteOutputAmplitude ||
       oldDelegate.spectrum != spectrum ||
       oldDelegate.mentorColor != mentorColor;
 }

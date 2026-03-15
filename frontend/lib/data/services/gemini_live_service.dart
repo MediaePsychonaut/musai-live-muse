@@ -7,12 +7,15 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/audio/audio_recorder.dart';
 
 import '../../core/net/channel_factory.dart';
+import '../providers/mentor_providers.dart';
 
 class GeminiLiveService {
   final String apiKey;
   final CortexRecorder recorder;
+  final MentorState mentorState;
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
+  bool _isDisposed = false;
 
   static const String _host = 'generativelanguage.googleapis.com';
   static const String _path =
@@ -21,7 +24,7 @@ class GeminiLiveService {
   // IMMUTABLE Target Model: gemini-2.5-flash-native-audio-latest
   static const String _model = 'models/gemini-2.5-flash-native-audio-latest';
 
-  GeminiLiveService(this.apiKey, this.recorder);
+  GeminiLiveService(this.apiKey, this.recorder, this.mentorState);
 
   bool get isConnected => _channel != null;
 
@@ -35,6 +38,7 @@ class GeminiLiveService {
     final uri = Uri.parse('wss://$_host$_path?key=$apiKey');
     final completer = Completer<void>();
     bool setupHandled = false;
+    _isDisposed = false;
 
     try {
       // Directive: Inject standard headers via ChannelFactory
@@ -115,7 +119,9 @@ class GeminiLiveService {
             }
 
             // Keep existing onMessage trigger for raw payloads if needed
-            // onMessage(decoded);
+            if (!_isDisposed) {
+              onMessage(decoded);
+            }
           } catch (e) {
             debugPrint("MUSE_LOG: [EUTE] Stream Parse Error: $e");
             debugPrint(
@@ -152,7 +158,7 @@ class GeminiLiveService {
               "speechConfig": {
                 // <-- FIXED to camelCase
                 "voiceConfig": {
-                  "prebuiltVoiceConfig": {"voiceName": "Aoede"},
+                  "prebuiltVoiceConfig": {"voiceName": mentorState.voiceName},
                 },
               },
             },
@@ -160,15 +166,16 @@ class GeminiLiveService {
               // <-- FIXED to camelCase
               "parts": [
                 {
-                  "text":
-                      "I am EUTE. The Auditory Guardian of MusAI. Neon-Technical, precise, corrective, and minimalist. I analyze the Chief Architect's violin performance (pitch/tempo) and provide technical, data-driven feedback focusing on the 'Physics' of the music. ALWAYS start the session with: 'I am EUTE. The sync is locked. Let us begin the technical audit.'",
+                  "text": mentorState.systemInstruction,
                 },
               ],
             },
           },
         };
-        _channel!.sink.add(jsonEncode(handshake));
-        debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked.");
+        if (_channel != null && !_isDisposed) {
+          _channel!.sink.add(jsonEncode(handshake));
+          debugPrint("MUSE_LOG: [EUTE] Sovereign Identity Locked.");
+        }
       } catch (handshakeError) {
         // ... existing catch logic
         debugPrint("MUSE_LOG: [EUTE] HANDSHAKE_FAILURE: $handshakeError");
@@ -186,6 +193,8 @@ class GeminiLiveService {
   }
 
   void disconnect() {
+    if (_isDisposed) return;
+    _isDisposed = true;
     debugPrint("MUSE_LOG: [EUTE] Terminating sync protocols...");
     _subscription?.cancel();
     _channel?.sink.close();
@@ -211,7 +220,9 @@ class GeminiLiveService {
         },
       };
 
-      _channel!.sink.add(jsonEncode(message));
+      if (!_isDisposed) {
+        _channel!.sink.add(jsonEncode(message));
+      }
     } catch (e, stack) {
       // THIS WILL TELL US WHY IT IS TERMINATING
       debugPrint("MUSE_LOG: [EUTE] PIPELINE_CRASH: $e");

@@ -1,33 +1,59 @@
 import 'dart:async';
-import 'dart:typed_data';
-import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class AudioOutputService {
   static final AudioOutputService _instance = AudioOutputService._internal();
   factory AudioOutputService() => _instance;
   AudioOutputService._internal();
 
+  static const _channel = MethodChannel('musai.live/audio_sink');
+  static const _telemetryChannel = BasicMessageChannel<dynamic>('musai.live/audio_telemetry', StandardMessageCodec());
+
+  final _telemetryController = StreamController<double>.broadcast();
+  Stream<double> get telemetryStream => _telemetryController.stream;
+
   bool _initialized = false;
   
   Future<void> init() async {
     if (_initialized) return;
     
-    await SoLoud.instance.init();
-    _initialized = true;
+    try {
+      await _channel.invokeMethod('init', {'sampleRate': 24000});
+      _telemetryChannel.setMessageHandler((message) async {
+        if (message is double) {
+          _telemetryController.add(message);
+        } else if (message is int) {
+          _telemetryController.add(message.toDouble());
+        }
+        return null;
+      });
+      _initialized = true;
+    } catch (e) {
+      debugPrint("NATIVE_SINK_ERROR: [INIT] $e");
+    }
   }
 
   /// Plays 24kHz PCM 16-bit Mono chunks from Gemini
-  Future<void> playChunk(Uint8List chunk) async {
-    if (!_initialized) await init();
+  void playChunk(Uint8List chunk) {
+    if (!_initialized) {
+      init().then((_) {
+        _invokeWrite(chunk);
+      });
+      return;
+    }
+    _invokeWrite(chunk);
+  }
 
-    // [SoLoud 2.x] Load from memory and play
-    // The Gemini chunks are already 16-bit PCM. SoLoud 2.x loadMem handles this.
-    final source = await SoLoud.instance.loadMem("gemini_chunk_${DateTime.now().millisecondsSinceEpoch}", chunk);
-    await SoLoud.instance.play(source);
+  void _invokeWrite(Uint8List chunk) {
+    _channel.invokeMethod('write', {'data': chunk}).catchError((e) {
+      debugPrint("NATIVE_SINK_ERROR: [WRITE] $e");
+    });
   }
 
   void dispose() {
-    SoLoud.instance.deinit();
+    _channel.invokeMethod('dispose');
     _initialized = false;
+    _telemetryController.close();
   }
 }

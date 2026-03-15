@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/audio/audio_recorder.dart';
 import '../../core/audio/audio_output_service.dart';
-import '../../core/audio/jitter_buffer.dart';
 import '../../core/dsp/pitch_detector.dart';
 import '../../core/secrets/secret_manager.dart';
 import '../services/gemini_live_service.dart';
+import 'mentor_providers.dart';
 
 enum LiveStreamStatus { disconnected, connecting, connected, error }
 
@@ -17,6 +17,8 @@ class LiveStreamState {
   final double pitch;
   final List<double> spectrum; // FFT Telemetry
   final double violinResonance;
+  final double aiResonance;
+  final double euteOutputAmplitude; // Native RMS
 
   LiveStreamState({
     required this.status,
@@ -25,6 +27,8 @@ class LiveStreamState {
     this.pitch = 0.0,
     this.spectrum = const [],
     this.violinResonance = 0.0,
+    this.aiResonance = 0.0,
+    this.euteOutputAmplitude = 0.0,
   });
 
   LiveStreamState copyWith({
@@ -34,6 +38,8 @@ class LiveStreamState {
     double? pitch,
     List<double>? spectrum,
     double? violinResonance,
+    double? aiResonance,
+    double? euteOutputAmplitude,
   }) {
     return LiveStreamState(
       status: status ?? this.status,
@@ -42,6 +48,8 @@ class LiveStreamState {
       pitch: pitch ?? this.pitch,
       spectrum: spectrum ?? this.spectrum,
       violinResonance: violinResonance ?? this.violinResonance,
+      aiResonance: aiResonance ?? this.aiResonance,
+      euteOutputAmplitude: euteOutputAmplitude ?? this.euteOutputAmplitude,
     );
   }
 }
@@ -51,9 +59,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   StreamSubscription? _audioSubscription;
   PitchDetector? _pitchDetector;
   StreamSubscription? _pitchSubscription;
+  StreamSubscription? _telemetrySubscription;
   final _audioOutput = AudioOutputService();
-  final _jitterBuffer = JitterBuffer();
-  Timer? _playbackTimer;
+  bool _connecting = false;
 
   @override
   FutureOr<LiveStreamState> build() {
@@ -61,6 +69,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   }
 
   Future<void> connect() async {
+    if (_connecting) return;
+    _connecting = true;
+
     state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.connecting));
 
     try {
@@ -68,6 +79,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       
       final hasPermission = await recorder.hasPermission();
       if (!hasPermission) {
+        _connecting = false;
         state = AsyncValue.data(LiveStreamState(
           status: LiveStreamStatus.error,
           error: "PERMISSION_DENIED: Microphone access is required.",
@@ -80,21 +92,24 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       // Initialize SoLoud for Output
       await _audioOutput.init();
       
+      final currentMentor = ref.read(mentorProvider);
+
       _service?.disconnect();
-      _service = GeminiLiveService(apiKey, recorder);
+      _service = GeminiLiveService(apiKey, recorder, currentMentor);
 
       await _service!.connect(
         onMessage: (msg) {
-          // 1. Handle Audio Chunks (24kHz PCM)
+          // 1. Handle Audio Chunks (24kHz PCM) - [MISSION: GAPLESS]
           final audioChunk = msg['audio_chunk'];
           if (audioChunk != null && audioChunk is Uint8List) {
-            _jitterBuffer.addChunk(audioChunk);
+            // Push directly to native sink for zero-stutter gapless playback
+            _audioOutput.playChunk(audioChunk);
           }
 
           // 2. Process technical feedback from EUTE
-          final serverContent = msg['server_content'];
+          final serverContent = msg['serverContent'];
           if (serverContent != null) {
-            final modelTurn = serverContent['model_turn'];
+            final modelTurn = serverContent['modelTurn'];
             if (modelTurn != null) {
               final parts = modelTurn['parts'] as List?;
               if (parts != null) {
@@ -109,12 +124,14 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
           }
         },
         onError: (err) {
+          _connecting = false;
           state = AsyncValue.data(LiveStreamState(
             status: LiveStreamStatus.error,
             error: "SYNC_FAIL: ${err.toString()}",
           ));
         },
         onDone: () {
+          _connecting = false;
           disconnect();
         },
       );
@@ -125,7 +142,6 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       // Initialize Pitch Detector Isolate
       _pitchDetector = PitchDetector();
       await _pitchDetector!.init();
-      
       DateTime lastUpdate = DateTime.now();
       _pitchSubscription = _pitchDetector!.results.listen((result) {
         final now = DateTime.now();
@@ -143,6 +159,17 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         }
       });
 
+      // [V2.2] Listen to native hardware telemetry for "AI Bloom"
+      _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
+        final currentState = state.value;
+        if (currentState != null) {
+          state = AsyncValue.data(currentState.copyWith(
+            aiResonance: rms,
+            euteOutputAmplitude: rms, // Direct binding for Bloom pulse
+          ));
+        }
+      });
+
       // Start the native audio stream (16kHz, Mono, PCM16)
       await recorder.startStream(const CortexRecordConfig(
         sampleRate: 16000,
@@ -156,19 +183,10 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         _pitchDetector?.processFrame(frame, 16000);
       });
 
-
-      // [JITTER-BUFFER] Playback Loop
-      _playbackTimer = Timer.periodic(const Duration(milliseconds: 20), (timer) async {
-        if (_jitterBuffer.hasSufficientData || (!_jitterBuffer.isEmpty && timer.tick > 50)) {
-          final chunk = _jitterBuffer.nextChunk();
-          if (chunk != null) {
-            await _audioOutput.playChunk(chunk);
-          }
-        }
-      });
-
       state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.connected));
+      _connecting = false;
     } catch (e) {
+      _connecting = false;
       state = AsyncValue.data(LiveStreamState(
         status: LiveStreamStatus.error,
         error: e.toString(),
@@ -179,8 +197,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   void disconnect() {
     _audioSubscription?.cancel();
     _pitchSubscription?.cancel();
-    _playbackTimer?.cancel();
-    _jitterBuffer.clear();
+    _telemetrySubscription?.cancel();
     _pitchDetector?.dispose();
     _pitchDetector = null;
     
