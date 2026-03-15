@@ -120,7 +120,7 @@ class _WavePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
         
-      final barCount = math.min(spectrum.length, 64);
+      final barCount = math.min(spectrum.length, 300);
       final barWidth = size.width / barCount;
       
       for (int i = 0; i < barCount; i++) {

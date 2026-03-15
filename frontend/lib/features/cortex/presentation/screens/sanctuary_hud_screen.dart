@@ -72,23 +72,25 @@ class SanctuaryHudScreen extends ConsumerWidget {
                   const SizedBox(height: 40),
 
                   // Status Readout with Bloom Engine
-                  BloomBorder(
-                    bloomColor: mentorState.primaryColor,
-                    borderRadius: mentorState.borderRadius,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      child: Text(
-                        statusText,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              letterSpacing: 8,
-                              color: mentorState.primaryColor,
-                              shadows: [
-                                Shadow(
-                                  color: mentorState.primaryColor,
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
+                  RepaintBoundary(
+                    child: BloomBorder(
+                      bloomColor: mentorState.primaryColor,
+                      borderRadius: mentorState.borderRadius,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        child: Text(
+                          statusText,
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                letterSpacing: 8,
+                                color: mentorState.primaryColor,
+                                shadows: [
+                                  Shadow(
+                                    color: mentorState.primaryColor,
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                        ),
                       ),
                     ),
                   ),
@@ -96,7 +98,9 @@ class SanctuaryHudScreen extends ConsumerWidget {
                   const SizedBox(height: 60),
                   
                   // State of Soul (Visualizer)
-                  const SoulStateVisualizer(),
+                  const RepaintBoundary(
+                    child: SoulStateVisualizer(),
+                  ),
                   
                   const SizedBox(height: 80),
                   
@@ -175,7 +179,10 @@ class _MentorButton extends ConsumerWidget {
     final isActive = activeMentor == mentor;
     
     return TextButton(
-      onPressed: () => ref.read(mentorProvider.notifier).switchMentor(mentor),
+      onPressed: () {
+        ref.read(liveStreamStateProvider.notifier).disconnect();
+        ref.read(mentorProvider.notifier).switchMentor(mentor);
+      },
       style: TextButton.styleFrom(
         foregroundColor: isActive ? Colors.white : Colors.white38,
         backgroundColor: isActive ? MusaiTheme.deepSpaceTeal.withAlpha(128) : null,

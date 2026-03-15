@@ -139,6 +139,8 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       // [SEQUENTIAL-HANDSHAKE] Setup is strictly complete. Activate Audio Pipeline.
       debugPrint("MUSE_LOG: [EUTE] Protocol Synchronized. Activating Audio Pipeline...");
 
+      DateTime lastTelemetryUpdate = DateTime.now();
+
       // Initialize Pitch Detector Isolate
       _pitchDetector = PitchDetector();
       await _pitchDetector!.init();
@@ -161,6 +163,10 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
 
       // [V2.2] Listen to native hardware telemetry for "AI Bloom"
       _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
+        final now = DateTime.now();
+        if (now.difference(lastTelemetryUpdate).inMilliseconds < 50) return;
+        
+        lastTelemetryUpdate = now;
         final currentState = state.value;
         if (currentState != null) {
           state = AsyncValue.data(currentState.copyWith(
@@ -204,7 +210,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _service?.recorder.stop();
     _service?.recorder.dispose();
     _service?.disconnect();
+    _service = null; // ZOMBIE PURGE: Hard dereference
     _audioOutput.dispose();
+    _connecting = false;
     
     state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.disconnected));
   }

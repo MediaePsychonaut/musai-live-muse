@@ -18,7 +18,7 @@ class MainActivity : FlutterActivity() {
     private val TELEMETRY_CHANNEL = "musai.live/audio_telemetry"
     
     private var audioTrack: AudioTrack? = null
-    private val executor = Executors.newSingleThreadExecutor()
+    private var executor = Executors.newSingleThreadExecutor()
     private var telemetryChannel: BasicMessageChannel<Any>? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -68,6 +68,8 @@ class MainActivity : FlutterActivity() {
     private fun initAudioTrack(sampleRate: Int) {
         disposeAudioTrack()
         
+        executor = Executors.newSingleThreadExecutor()
+
         val minBufferSize = AudioTrack.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
@@ -97,6 +99,9 @@ class MainActivity : FlutterActivity() {
 
     private fun writeAudio(data: ByteArray) {
         executor.execute {
+            if (audioTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                audioTrack?.play()
+            }
             audioTrack?.write(data, 0, data.size)
             calculateAndSendTelemetry(data)
         }
@@ -130,11 +135,15 @@ class MainActivity : FlutterActivity() {
         audioTrack?.stop()
         audioTrack?.release()
         audioTrack = null
+        try {
+            executor.shutdownNow()
+        } catch (e: Exception) {
+            // Ignored, safe purge
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         disposeAudioTrack()
-        executor.shutdown()
     }
 }

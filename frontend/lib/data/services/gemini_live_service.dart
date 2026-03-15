@@ -51,9 +51,11 @@ class GeminiLiveService {
 
       _subscription = _channel!.stream.listen(
         (data) {
-          debugPrint(
-            "MUSE_LOG: [EUTE] RAW RECEIVE: Type=${data.runtimeType} | Data=$data",
-          );
+          if (data is String) {
+            debugPrint("MUSE_TELEMETRY: [WS] RAW RECEIVE: Type=String | Length=${data.length}");
+          } else if (data is Uint8List) {
+            debugPrint("MUSE_TELEMETRY: [WS] RAW RECEIVE: Type=Uint8List | Length=${data.length}");
+          }
           String? rawString;
           try {
             if (data is Uint8List) {
@@ -69,9 +71,7 @@ class GeminiLiveService {
             final decoded = jsonDecode(rawString);
             if (decoded.containsKey('serverContent') ||
                 decoded.containsKey('setupComplete')) {
-              debugPrint(
-                "赤冥蝠_LOG: [INBOUND] EUTE response detected: ${rawString.substring(0, math.min(rawString.length, 50))}...",
-              );
+              _logServerContent(decoded);
             }
             // [SEQUENTIAL-HANDSHAKE] Detect setupComplete (v2.1 CamelCase Spec)
             if (!setupHandled && decoded.containsKey('setupComplete')) {
@@ -90,21 +90,12 @@ class GeminiLiveService {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
                   for (final part in parts) {
-                    // Handle Text Feedback
-                    final text = part['text'];
-                    if (text != null) {
-                      debugPrint("MUSE_LOG: [EUTE] Response: $text");
-                    }
-
-                    // Handle Audio Data (PCM 24kHz)
                     final inlineData = part['inlineData'];
                     if (inlineData != null) {
                       final data = inlineData['data'];
                       if (data != null && data is String) {
                         try {
                           final pcmChunk = base64Decode(data);
-                          // Directive: Pipe to JitterBuffer (Future)
-                          // debugPrint("MUSE_LOG: [EUTE] Decoded PCM Chunk: ${pcmChunk.length} bytes");
                           onMessage({'audio_chunk': pcmChunk});
                         } catch (e) {
                           debugPrint(
@@ -255,6 +246,37 @@ class GeminiLiveService {
     } catch (e) {
       debugPrint("MUSE_LOG: [EUTE] MONO_DOWNMIX_ERROR: $e");
       return frame; // Fallback to raw if downmix fails
+    }
+  }
+
+  void _logServerContent(Map<String, dynamic> decoded) {
+    if (decoded.containsKey('setupComplete')) {
+      debugPrint("MUSE_TELEMETRY: [SETUP] Acknowledgement Received.");
+      return;
+    }
+    
+    final serverContent = decoded['serverContent'];
+    if (serverContent != null) {
+      final modelTurn = serverContent['modelTurn'];
+      if (modelTurn != null) {
+        final parts = modelTurn['parts'] as List?;
+        if (parts != null) {
+          for (final part in parts) {
+            final text = part['text'];
+            if (text != null) {
+              debugPrint("MUSE_TELEMETRY: [TEXT] $text");
+            }
+            final inlineData = part['inlineData'];
+            if (inlineData != null) {
+              final data = inlineData['data'];
+              if (data is String) {
+                final byteLength = (data.length * 3) ~/ 4;
+                debugPrint("MUSE_TELEMETRY: [AUDIO] Received $byteLength bytes");
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
