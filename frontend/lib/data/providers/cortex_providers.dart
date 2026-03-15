@@ -104,12 +104,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       }
 
       final apiKey = SecretManager().apiKey;
-      
-      // Initialize SoLoud for Output
       await _audioOutput.init();
       
       final currentEngine = ref.read(engineProvider);
-      
       final summary = await _practiceLedger.getLastSessionSummary();
       final currentMentorData = ref.read(mentorProvider);
       
@@ -141,28 +138,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
 
       await _service!.connect(
         onMessage: (msg) {
-          // 1. Handle Audio Chunks (24kHz PCM) - [MISSION: GAPLESS]
           final audioChunk = msg['audio_chunk'];
           if (audioChunk != null && audioChunk is Uint8List) {
-            // Push directly to native sink for zero-stutter gapless playback
             _audioOutput.playChunk(audioChunk);
-          }
-
-          // 2. Process technical feedback from EUTE
-          final serverContent = msg['server_content'] ?? msg['serverContent'];
-          if (serverContent != null) {
-            final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
-            if (modelTurn != null) {
-              final parts = modelTurn['parts'] as List?;
-              if (parts != null) {
-                for (final part in parts) {
-                  final text = part['text'];
-                  if (text != null) {
-                    debugPrint("MUSE_LOG: [EUTE] Response: $text");
-                  }
-                }
-              }
-            }
           }
         },
         onError: (err) {
@@ -190,97 +168,14 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
             hw.setDrone(active);
             if (active) {
               final freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
-              // Map frequency back to Key for UI display if needed, or just show freq
               hw.setKey("${freq.toStringAsFixed(0)}Hz");
             }
           }
         },
       );
 
-      // [SEQUENTIAL-HANDSHAKE] Setup is strictly complete. Activate Audio Pipeline.
-      debugPrint("MUSE_LOG: [EUTE] Protocol Synchronized. Activating Audio Pipeline...");
-
-      // Unified Governor State (Memory Buffer)
-      PitchDetectorResult? latestPitchResult;
-      double latestAiResonance = 0.0;
-      double latestEuteAmplitude = 0.0;
-
-      // Initialize Pitch Detector Isolate
-      _pitchDetector = PitchDetector();
-      await _pitchDetector!.init();
-      
-      _pitchSubscription = _pitchDetector!.results.listen((result) {
-        latestPitchResult = result;
-      });
-
-      // [V2.2] Listen to native hardware telemetry for "AI Bloom"
-      _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
-        latestAiResonance = rms;
-        latestEuteAmplitude = rms;
-      });
-
-      // [V0.9] Listen to native Oboe ticks and bypass governor for immediate synchrony
-      _pulseSubscription = _audioOutput.pulseStream.listen((tick) {
-        final currentState = state.value;
-        if (currentState != null) {
-          state = AsyncValue.data(currentState.copyWith(
-            pulseTick: currentState.pulseTick + 1,
-          ));
-        }
-      });
-
-      // [UNIFIED-GOVERNOR] Single 60ms State Frame-Pump (~16.6 FPS)
-      _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
-        final currentState = state.value;
-        if (currentState != null) {
-          final pitch = latestPitchResult?.pitch ?? currentState.pitch;
-          final cents = latestPitchResult?.centsDeviation ?? 0.0;
-          
-          final activeSessionId = ref.read(sessionManagerProvider);
-          if (activeSessionId != null && pitch > 0.0) {
-             _practiceLedger.logTelemetry(activeSessionId, pitch, cents);
-          }
-
-          state = AsyncValue.data(currentState.copyWith(
-            pitch: pitch,
-            volume: latestPitchResult?.volume ?? currentState.volume,
-            spectrum: latestPitchResult?.spectrum ?? currentState.spectrum,
-            violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
-            aiResonance: latestAiResonance,
-            euteOutputAmplitude: latestEuteAmplitude,
-            centsDeviation: cents,
-          ));
-        }
-      });
-
-      // Start the native audio stream (16kHz, Mono, PCM16)
-      await recorder.startStream(const CortexRecordConfig(
-        sampleRate: 16000,
-        numChannels: 1,
-      ));
-
-      // Throttling counters for Metadata Injection
-      int frameCounter = 0;
-
-      _audioSubscription = recorder.audioStream.listen((frame) {
-        frameCounter++;
-        
-        // [METADATA-INJECTION] Ground Truth.
-        // The recorder emits frames based on buffer size. 
-        // We throttle text payload injection to prevent context bloat.
-        String? metadataPayload;
-        if (frameCounter >= 20) { // Inject approx every 20 chunks
-          frameCounter = 0;
-          if (latestPitchResult != null && latestPitchResult!.volume > 0.05) {
-            metadataPayload = "f0: ${latestPitchResult!.pitch.toStringAsFixed(1)}Hz | cents: ${latestPitchResult!.centsDeviation.toStringAsFixed(1)}";
-          }
-        }
-
-        _service?.sendAudioFrame(frame, metadata: metadataPayload);
-        
-        // Push frame to Isolate for high-performance analysis
-        _pitchDetector?.processFrame(frame, 16000);
-      });
+      // Core Sensory Hub activation
+      await _activateSensoryLoop(recorder);
 
       state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.connected));
       _connecting = false;
@@ -291,6 +186,81 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         error: e.toString(),
       ));
     }
+  }
+
+  Future<void> _activateSensoryLoop(CortexRecorder recorder) async {
+    if (_pitchDetector != null) return;
+
+    debugPrint("MUSE_LOG: [SENSORY] Activating Local Perception...");
+
+    PitchDetectorResult? latestPitchResult;
+    double latestAiResonance = 0.0;
+    double latestEuteAmplitude = 0.0;
+
+    _pitchDetector = PitchDetector();
+    await _pitchDetector!.init();
+    
+    _pitchSubscription = _pitchDetector!.results.listen((result) {
+      latestPitchResult = result;
+    });
+
+    _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
+      latestAiResonance = rms;
+      latestEuteAmplitude = rms;
+    });
+
+    _pulseSubscription = _audioOutput.pulseStream.listen((tick) {
+      final currentState = state.value;
+      if (currentState != null) {
+        state = AsyncValue.data(currentState.copyWith(
+          pulseTick: currentState.pulseTick + 1,
+        ));
+      }
+    });
+
+    _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
+      final currentState = state.value;
+      if (currentState != null) {
+        final pitch = latestPitchResult?.pitch ?? currentState.pitch;
+        final cents = latestPitchResult?.centsDeviation ?? 0.0;
+        
+        final activeSessionId = ref.read(sessionManagerProvider);
+        if (activeSessionId != null && pitch > 0.0) {
+           _practiceLedger.logTelemetry(activeSessionId, pitch, cents);
+        }
+
+        state = AsyncValue.data(currentState.copyWith(
+          pitch: pitch,
+          volume: latestPitchResult?.volume ?? currentState.volume,
+          spectrum: latestPitchResult?.spectrum ?? currentState.spectrum,
+          violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
+          aiResonance: latestAiResonance,
+          euteOutputAmplitude: latestEuteAmplitude,
+          centsDeviation: cents,
+        ));
+      }
+    });
+
+    await recorder.startStream(const CortexRecordConfig(
+      sampleRate: 16000,
+      numChannels: 1,
+    ));
+
+    int frameCounter = 0;
+    _audioSubscription = recorder.audioStream.listen((frame) {
+      frameCounter++;
+      
+      String? metadataPayload;
+      if (frameCounter >= 20) {
+        frameCounter = 0;
+        if (latestPitchResult != null && latestPitchResult!.volume > 0.05) {
+          metadataPayload = "f0: ${latestPitchResult!.pitch.toStringAsFixed(1)}Hz | cents: ${latestPitchResult!.centsDeviation.toStringAsFixed(1)}";
+        }
+      }
+
+      _service?.sendAudioFrame(frame, metadata: metadataPayload);
+      _pitchDetector?.processFrame(frame, 16000);
+    });
   }
 
   void disconnect() {
@@ -307,15 +277,13 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _pitchDetector?.dispose();
     _pitchDetector = null;
     
-    // Stop recording first before disposing to prevent sink writes
     _service?.recorder.stop();
     _service?.recorder.dispose();
     _service?.disconnect();
-    _service = null; // ZOMBIE PURGE: Hard dereference
+    _service = null;
     _audioOutput.dispose();
     
     _connecting = false;
-    
     state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.disconnected));
   }
 }

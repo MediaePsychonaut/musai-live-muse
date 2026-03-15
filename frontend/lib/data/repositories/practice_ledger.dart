@@ -201,15 +201,23 @@ class PracticeLedger {
       if (s['start_time'] != null && s['end_time'] != null) {
         final start = DateTime.parse(s['start_time'] as String);
         final end = DateTime.parse(s['end_time'] as String);
-        totalHours += end.difference(start).inSeconds / 3600.0;
+        final diff = end.difference(start).inSeconds;
+        if (diff > 0) {
+          totalHours += diff / 3600.0;
+        }
       }
     }
 
     final telemetry = await db.rawQuery('SELECT AVG(ABS(cents_deviation)) as global_cents FROM telemetry');
-    double avgPrecision = 0.0; // 0 deviation = 100% precision. Let's say 50 cents = 0%
+    double avgPrecision = 0.0; 
     if (telemetry.isNotEmpty && telemetry.first['global_cents'] != null) {
       double avgCents = (telemetry.first['global_cents'] as num).toDouble();
+      // 50 cents = 0% precision. Tighten/loosen here as needed.
+      // We'll use a smoother mapping: 100% at 0 cents, 50% at 25 cents, 0% at 50+ cents.
       avgPrecision = (1.0 - (avgCents / 50.0)).clamp(0.0, 1.0) * 100.0;
+    } else {
+      // If no telemetry but session exists, assume 100% or "N/A"
+      avgPrecision = 100.0; 
     }
 
     return {

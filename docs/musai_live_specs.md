@@ -87,8 +87,8 @@ MusAI is a **Living Organism** designed as a **Digital Sanctuary**. It functions
 All DSP and technical implementations must align with the mathematical ground truths located in the agent reference directory. **Steven Smith’s text is no longer required**, as Müller and Puckette provide the superior, high-fidelity standards necessary for this specific phase of synthesis and rhythmic quantization.
 
 * **Primary Reference Path:** C:\\OPERATIVE\_SYSTEM\_DER\_TAB\\04\_AGENT\_REF\\DATA\_AGENT  
-* **Spectral & Rhythmic Logic:** 2021\_Mueller\_FMP\_Signals.pdf  
-* **Synthesis & Phase Stability:** THEORY\_AND\_TECHNIQUE\_ELECTRONIC\_MUSIC\_MILLER\_PUCKETTE.pdf
+* **Spectral & Rhythmic Logic:** 2021_Mueller_FMP_Signals.pdf  
+* **Synthesis & Phase Stability:** THEORY_AND_TECHNIQUE_ELECTRONIC_MUSIC_MILLER_PUCKETTE.pdf
 
 ---
 

@@ -58,7 +58,7 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
   void setBpm(int bpm) {
     state = state.copyWith(bpm: bpm);
     if (state.isMetronomeActive) {
-      _pulseEngine.start(bpm.toDouble());
+      _pulseEngine.updateBpm(bpm.toDouble());
     }
   }
 
@@ -66,7 +66,7 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
     state = state.copyWith(key: key);
     if (state.isDroneActive) {
       final freq = PitchMatrix.a440Frequencies[key] ?? 440.0;
-      _pulseEngine.startDrone(freq);
+      _pulseEngine.updateDroneFreq(freq);
     }
   }
   

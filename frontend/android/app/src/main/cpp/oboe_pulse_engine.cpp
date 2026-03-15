@@ -78,6 +78,20 @@ private:
     }
 
 public:
+    void updateBpm(double bpm) {
+        mBpm = bpm;
+        updatePhaseIncrement();
+        LOGI("Pulse Engine BPM Updated: %f", mBpm);
+    }
+
+    void updateDroneFreq(double freq) {
+        mDroneFreq = freq;
+        if (stream) {
+            mDronePhaseIncrement = mDroneFreq / (double)stream->getSampleRate();
+        }
+        LOGI("Drone Engine FREQ Updated: %f", mDroneFreq);
+    }
+
     PulseEngine() {}
 
     bool start(double bpm) {
@@ -89,6 +103,7 @@ public:
         AudioStreamBuilder builder;
         builder.setFormat(AudioFormat::Float)
             ->setChannelCount(1)
+            ->setSampleRate(24000) // MATCH GEMINI
             ->setPerformanceMode(PerformanceMode::LowLatency)
             ->setSharingMode(SharingMode::Exclusive)
             ->setCallback(this);
@@ -108,7 +123,7 @@ public:
             return false;
         }
 
-        LOGI("Pulse Engine Started: BPM %f", mBpm);
+        LOGI("Pulse Engine Started: BPM %f at %d Hz", mBpm, mSampleRate);
         return true;
     }
 
@@ -149,6 +164,7 @@ public:
     }
 
     double writeVocalData(const int16_t* data, int32_t numSamples) {
+        if (numSamples <= 0) return 0.0;
         // Calculate RMS in C++ for performance
         double sumSq = 0.0;
         for (int i = 0; i < numSamples; ++i) {
@@ -161,8 +177,24 @@ public:
         return rms;
     }
 
+    void updateBpm(double bpm) {
+        mBpm = bpm;
+        updatePhaseIncrement();
+        LOGI("BPM Updated: %f", mBpm);
+    }
+
+    void updateDroneFreq(double freq) {
+        mDroneFreq = freq;
+        if (stream) {
+            mSampleRate = stream->getSampleRate();
+            mDronePhaseIncrement = mDroneFreq / (double)mSampleRate;
+        }
+        LOGI("Drone Freq Updated: %f", mDroneFreq);
+    }
+
     DataCallbackResult onAudioReady(AudioStream *oboeStream, void *audioData, int32_t numFrames) override {
         float *floatData = (float *) audioData;
+        if (!floatData) return DataCallbackResult::Stop;
 
         for (int i = 0; i < numFrames; ++i) {
             float sampleValue = 0.0f;
@@ -170,19 +202,18 @@ public:
             if (mIsPlaying) {
                 mPhase += mPhaseIncrement;
                 
-                // Render a short 440Hz tick when the macro phase resets
+                // Render a tick
                 if (mPhase >= 1.0) {
                     mPhase -= 1.0;
                     mOscillatorPhase = 1.0; // Trigger tick envelope
                 }
 
                 if (mOscillatorPhase > 0.0) {
-                    // Generate a 440Hz sine wave enveloped by an exponential decay
-                    mOscillatorPhase -= 0.005; // Decay rate
+                    // C5 (523.25 Hz) for a clearer, more pleasant tick
+                    mOscillatorPhase -= 0.01; // Faster decay for punch
                     if (mOscillatorPhase < 0.0) mOscillatorPhase = 0.0;
 
-                    // Simple sine oscillator for the tick
-                    sampleValue += sin(mOscillatorPhase * M_PI * 440.0 * 2.0) * mOscillatorPhase * 0.5f;
+                    sampleValue += sin(mOscillatorPhase * M_PI * 523.25 * 2.0) * mOscillatorPhase * 0.8f;
                 }
             }
 
@@ -192,15 +223,15 @@ public:
                     mDronePhase -= 1.0;
                 }
                 
-                // Pure sine drone at lower volume
-                sampleValue += sin(mDronePhase * M_PI * 2.0) * 0.2f; 
+                // Pure sine drone - INCREASE GAIN to 0.4
+                sampleValue += sin(mDronePhase * M_PI * 2.0) * 0.4f; 
             }
 
             // Mix AI Vocal from Ring Buffer
             int16_t vocalSampleRaw;
             if (mVocalBuffer.read(vocalSampleRaw)) {
                 float vocalSample = (float)vocalSampleRaw / 32768.0f;
-                sampleValue += vocalSample * 0.8f; // Priority volume
+                sampleValue += vocalSample * 1.0f; // Full volume priority
             }
 
             // Simple clipping protection
@@ -222,6 +253,11 @@ Java_com_example_frontend_MainActivity_startPulseEngine(JNIEnv* env, jobject /* 
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_updatePulseEngineBpm(JNIEnv* env, jobject /* this */, jdouble bpm) {
+    engine.updateBpm(bpm);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_frontend_MainActivity_stopPulseEngine(JNIEnv* env, jobject /* this */) {
     engine.stop();
 }
@@ -229,6 +265,11 @@ Java_com_example_frontend_MainActivity_stopPulseEngine(JNIEnv* env, jobject /* t
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_frontend_MainActivity_startDroneEngine(JNIEnv* env, jobject /* this */, jdouble freq) {
     engine.startDrone(freq);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_updateDroneEngineFreq(JNIEnv* env, jobject /* this */, jdouble freq) {
+    engine.updateDroneFreq(freq);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -247,4 +288,14 @@ Java_com_example_frontend_MainActivity_writeVocalData(JNIEnv* env, jobject /* th
     
     env->ReleaseByteArrayElements(data, bufferPtr, JNI_ABORT);
     return rms;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_updateBpm(JNIEnv* env, jobject /* this */, jdouble bpm) {
+    engine.updateBpm(bpm);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_updateDroneFreq(JNIEnv* env, jobject /* this */, jdouble freq) {
+    engine.updateDroneFreq(freq);
 }
