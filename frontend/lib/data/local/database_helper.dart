@@ -18,7 +18,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'practice_ledger.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -38,6 +38,7 @@ class DatabaseHelper {
         start_time TEXT NOT NULL,
         end_time TEXT,
         engine_version TEXT,
+        objective TEXT,
         is_synced INTEGER DEFAULT 0
       )
     ''');

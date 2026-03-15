@@ -17,7 +17,7 @@ dependencies:
   
   # --- Hackathon Connectivity & Audio ---
   firebase_core: ^3.15.0
-  google_generative_ai: ^0.2.0  # For standard Gemini interaction
+  google_generative_ai: 0.4.7  # For standard Gemini interaction
   web_socket_channel: 3.0.1    # Crucial for Bidi-Streaming (Live API)
   record: ^5.1.0                # To capture the musician's audio stream
   firebase_ai: ^2.3.0

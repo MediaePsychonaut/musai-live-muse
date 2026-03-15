@@ -275,6 +275,30 @@ THE LOOP IS ABSOLUTE. THE CLOUD IS SOVEREIGN.
 * **Baseline Audit:** [PASS] 'flutter analyze' is 100% pristine.
 VERDICT: PASS. The historical vault is now a living mirror of the artist's progress.
 THE LOOP IS ABSOLUTE. THE VAULT REFLECTS.
+
+### [QA_AUDIT] DIAG-32: Mathematical Matrix & Offline Tempo [PHASE-12] - PASS
+* **The Matrix:** [PASS] 'pitch_matrix.dart' implements immutable 'A440_FREQUENCIES' and 'COMMON_SCALES'. Constants are mathematically accurate for the tempered scale.
+* **Offline Sovereignty:** [PASS] 'HardwareProvider' natively hooks into 'PulseEngine'. Tap tempo calculation (4-point average) is robust and correctly clamped (30-300 BPM).
+* **Sync Integrity:** [PASS] User-applied microtask safety in 'GeminiLiveService' prevents UI jank during simultaneous AI and manual hardware triggers.
+* **Baseline Audit:** [PASS] 'flutter analyze' is 100% pristine.
+VERDICT: PASS. MusAI now possesses local mathematical intelligence and offline hardware agency.
+THE LOOP IS ABSOLUTE. THE MATH IS SOVEREIGN.
+
+### [QA_AUDIT] DIAG-33: Offline Resonance & Sovereign Session [PHASE-13] - PASS
+* **The Resonance Logic:** [PASS] 'HardwareProvider' successfully injects 'PitchMatrix' for manual drone key frequency translations. Key overrides (e.g. 'A4' -> 440Hz) are active.
+* **Sovereign Sessions:** [PASS] Session logic is successfully amputated from the Gemini link. 'PracticeLedger' (V3) and 'SessionManagerNotifier' manage session lifecycle independently of network status.
+* **Provider Sync:** [PASS] 'LiveStreamNotifier' now correctly consumes the 'activeSessionId' from the global 'sessionManagerProvider', ensuring telemetry is linked to the persistent observer even when the Muse is silent.
+* **Baseline Audit:** [PASS] 'flutter analyze' is 100% pristine. All null-safety and microtask directives verified.
+VERDICT: PASS. MusAI can now observe and document the artist's progress in total offline solitude.
+THE LOOP IS ABSOLUTE. THE SESSION IS SOVEREIGN.
+
+### [QA_AUDIT] DIAG-34: The Sovereign Instrument [PHASE-12-UI] - PASS
+* **Interactive Control Layer:** [PASS] 'SanctuaryHudScreen' now features fully functional manual Metronome (BPM slider/Tap Tempo) and Drone (Key Selector) modals. Toggles successfully override AI agency.
+* **Sovereign Chronometer:** [PASS] Session initialization with objectives and live HUD timer is active and persistent. Data integrity between UI chronometer and 'PracticeLedger' is verified.
+* **Live Tuner HUD:** [PASS] Absolute Hz and Cents Deviation overlay successfully surmounts the visualizer frame. Zero-jank reactivity confirmed.
+* **Baseline Audit:** [PASS] 'flutter analyze' is 100% pristine. Deprecated member usage ('activeColor') resolved.
+VERDICT: PASS. The Sanctuary HUD is now a high-fidelity instrument capable of both autonomous and collaborative creative flow.
+THE LOOP IS ABSOLUTE. THE INSTRUMENT IS SOVEREIGN.
 THE LOOP IS ABSOLUTE. THE PULSE IS SOVEREIGN.
 THE LOOP IS ABSOLUTE. THE PULSE IS SOVEREIGN.
 THE LOOP IS ABSOLUTE. THE PROTOCOL IS ALIGNED.

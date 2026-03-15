@@ -6,11 +6,15 @@ class PracticeLedger {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   // Create a new session and return the assigned session ID
-  Future<int> startSession(String engineVersion) async {
+  Future<int> startSession({
+    String engineVersion = 'offline',
+    String objective = 'ACTIVE FLOW',
+  }) async {
     final db = await _dbHelper.database;
     return await db.insert('sessions', {
       'start_time': DateTime.now().toIso8601String(),
       'engine_version': engineVersion,
+      'objective': objective,
       'is_synced': 0,
     });
   }
@@ -35,6 +39,7 @@ class PracticeLedger {
     
     final startTimeStr = sessionData.first['start_time'] as String;
     final engineVersion = sessionData.first['engine_version'] as String? ?? 'unknown';
+    final objective = sessionData.first['objective'] as String? ?? 'ACTIVE FLOW';
     
     final startTime = DateTime.parse(startTimeStr);
     final durationSecs = DateTime.parse(endTime).difference(startTime).inSeconds;
@@ -53,6 +58,7 @@ class PracticeLedger {
       'avg_f0': avgF0,
       'avg_cents': avgCents,
       'engine_version': engineVersion,
+      'objective': objective,
     };
 
     int isSynced = 0;
@@ -93,6 +99,7 @@ class PracticeLedger {
       final startTimeStr = row['start_time'] as String;
       final endTimeStr = row['end_time'] as String;
       final engineVer = row['engine_version'] as String? ?? 'unknown';
+      final objective = row['objective'] as String? ?? 'ACTIVE FLOW';
       
       final durationSecs = DateTime.parse(endTimeStr).difference(DateTime.parse(startTimeStr)).inSeconds;
       
@@ -123,6 +130,7 @@ class PracticeLedger {
             'avg_f0': avgF0,
             'avg_cents': avgCents,
             'engine_version': engineVer,
+            'objective': objective,
           });
           
         await db.update('sessions', {'is_synced': 1}, where: 'id = ?', whereArgs: [sessionId]);

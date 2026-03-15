@@ -24,6 +24,7 @@ class LiveStreamState {
   final double aiResonance;
   final double euteOutputAmplitude; // Native RMS
   final int pulseTick; // Oboe Native Downbeat
+  final double centsDeviation; // Pitch Deviation
 
   LiveStreamState({
     required this.status,
@@ -35,6 +36,7 @@ class LiveStreamState {
     this.aiResonance = 0.0,
     this.euteOutputAmplitude = 0.0,
     this.pulseTick = 0,
+    this.centsDeviation = 0.0,
   });
 
   LiveStreamState copyWith({
@@ -47,6 +49,7 @@ class LiveStreamState {
     double? aiResonance,
     double? euteOutputAmplitude,
     int? pulseTick,
+    double? centsDeviation,
   }) {
     return LiveStreamState(
       status: status ?? this.status,
@@ -58,6 +61,7 @@ class LiveStreamState {
       aiResonance: aiResonance ?? this.aiResonance,
       euteOutputAmplitude: euteOutputAmplitude ?? this.euteOutputAmplitude,
       pulseTick: pulseTick ?? this.pulseTick,
+      centsDeviation: centsDeviation ?? this.centsDeviation,
     );
   }
 }
@@ -74,7 +78,6 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   bool _connecting = false;
   
   final PracticeLedger _practiceLedger = PracticeLedger();
-  int? _activeSessionId;
 
   @override
   FutureOr<LiveStreamState> build() {
@@ -106,9 +109,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       await _audioOutput.init();
       
       final currentEngine = ref.read(engineProvider);
-      final currentEngineName = currentEngine.toString().split('.').last;
-
-      _activeSessionId = await _practiceLedger.startSession(currentEngineName);
+      
       final summary = await _practiceLedger.getLastSessionSummary();
       final currentMentorData = ref.read(mentorProvider);
       
@@ -235,8 +236,9 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
           final pitch = latestPitchResult?.pitch ?? currentState.pitch;
           final cents = latestPitchResult?.centsDeviation ?? 0.0;
           
-          if (_activeSessionId != null && pitch > 0.0) {
-             _practiceLedger.logTelemetry(_activeSessionId!, pitch, cents);
+          final activeSessionId = ref.read(sessionManagerProvider);
+          if (activeSessionId != null && pitch > 0.0) {
+             _practiceLedger.logTelemetry(activeSessionId, pitch, cents);
           }
 
           state = AsyncValue.data(currentState.copyWith(
@@ -246,6 +248,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
             violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
             aiResonance: latestAiResonance,
             euteOutputAmplitude: latestEuteAmplitude,
+            centsDeviation: cents,
           ));
         }
       });
@@ -311,14 +314,6 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     _service = null; // ZOMBIE PURGE: Hard dereference
     _audioOutput.dispose();
     
-    if (_activeSessionId != null) {
-      _practiceLedger.endSession(_activeSessionId!).then((_) {
-        // Trigger a refresh of the vault data
-        ref.read(practiceUpdateTriggerProvider.notifier).state++;
-      });
-      _activeSessionId = null;
-    }
-    
     _connecting = false;
     
     state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.disconnected));
@@ -354,4 +349,65 @@ final sessionDebriefProvider = FutureProvider<String?>((ref) async {
   
   final debriefService = SessionDebriefService();
   return await debriefService.generateDebrief(summary);
+});
+
+// --- UI / Session Logic ---
+
+final tunerEnabledProvider = StateProvider<bool>((ref) => false);
+
+class SessionTimerNotifier extends StateNotifier<Duration> {
+  Timer? _timer;
+  DateTime? _startTime;
+
+  SessionTimerNotifier() : super(Duration.zero);
+
+  void start() {
+    _startTime = DateTime.now();
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      state = DateTime.now().difference(_startTime!);
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+    state = Duration.zero;
+  }
+  
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
+final sessionTimerProvider = StateNotifierProvider<SessionTimerNotifier, Duration>((ref) {
+  return SessionTimerNotifier();
+});
+
+final sessionObjectiveProvider = StateProvider<String?>((ref) => null);
+final isSessionActiveProvider = StateProvider<bool>((ref) => false);
+
+class SessionManagerNotifier extends StateNotifier<int?> {
+  final PracticeLedger _ledger;
+  final Ref ref;
+
+  SessionManagerNotifier(this._ledger, this.ref) : super(null) {
+    ref.listen<bool>(isSessionActiveProvider, (prev, isActive) async {
+      if (isActive && state == null) {
+        final objective = ref.read(sessionObjectiveProvider) ?? "ACTIVE FLOW";
+        final engine = ref.read(engineProvider).toString().split('.').last;
+        state = await _ledger.startSession(engineVersion: engine, objective: objective);
+      } else if (!isActive && state != null) {
+        await _ledger.endSession(state!);
+        state = null;
+        ref.read(practiceUpdateTriggerProvider.notifier).state++;
+      }
+    });
+  }
+}
+
+final sessionManagerProvider = StateNotifierProvider<SessionManagerNotifier, int?>((ref) {
+  return SessionManagerNotifier(ref.watch(practiceLedgerProvider), ref);
 });
