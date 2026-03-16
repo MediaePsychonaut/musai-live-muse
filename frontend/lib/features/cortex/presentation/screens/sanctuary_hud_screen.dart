@@ -275,21 +275,40 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                     children: [
                                       const SizedBox(height: 20),
                                       Text(
-                                        "SESSION TIME: ${_formatDuration(sessionDuration)}",
+                                        _formatDuration(sessionDuration),
                                         style: TextStyle(
-                                          color: MusaiTheme.parchment.withAlpha(150),
+                                          color: MusaiTheme.parchment.withAlpha(240),
                                           letterSpacing: 2,
-                                          fontSize: 12,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
                                       Text(
-                                        "OBJECTIVE: ${(ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW").toUpperCase()}",
+                                        "SESSION TIME",
                                         style: TextStyle(
-                                          color: mentorState.primaryColor.withAlpha(200),
+                                          color: MusaiTheme.parchment.withAlpha(120),
+                                          letterSpacing: 4,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w300,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        "OBJECTIVE",
+                                        style: TextStyle(
+                                          color: mentorState.primaryColor.withAlpha(150),
+                                          letterSpacing: 3,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w300,
+                                        ),
+                                      ),
+                                      Text(
+                                        (ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW").toUpperCase(),
+                                        style: TextStyle(
+                                          color: mentorState.primaryColor,
                                           fontWeight: FontWeight.bold,
                                           letterSpacing: 1.5,
-                                          fontSize: 10,
+                                          fontSize: 16,
                                         ),
                                       ),
                                     ],
@@ -300,11 +319,11 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                 // MIC ACTUATOR (CIRCULAR SOVEREIGNTY)
                                 GestureDetector(
                                   onTap: () {
-                                    if (isSessionActive) {
-                                       ref.read(isSessionActiveProvider.notifier).state = false;
-                                       ref.read(sessionTimerProvider.notifier).stop();
+                                    final notifier = ref.read(liveStreamStateProvider.notifier);
+                                    if (status == LiveStreamStatus.connected) {
+                                      notifier.disconnect();
                                     } else {
-                                       _showSessionStartModal(context, ref);
+                                      notifier.connect();
                                     }
                                   },
                                   child: BloomBorder(
@@ -319,12 +338,12 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: isSessionActive 
-                                            ? mentorState.primaryColor.withOpacity(0.15) 
+                                            ? mentorState.primaryColor.withValues(alpha: 0.15) 
                                             : Colors.transparent,
                                         border: Border.all(
                                           color: isSessionActive 
                                               ? mentorState.primaryColor 
-                                              : mentorState.primaryColor.withOpacity(0.3),
+                                              : mentorState.primaryColor.withValues(alpha: 0.3),
                                           width: 2.0,
                                         ),
                                       ),
@@ -360,26 +379,27 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                       ref.read(sessionTimerProvider.notifier).stop();
                                     },
                                     style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: MusaiTheme.vitalRed),
+                                      side: const BorderSide(color: MusaiTheme.vitalRed, width: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                                       shape: const RoundedRectangleBorder(),
                                     ),
                                     child: const Text(
                                       "COMPLETE SESSION",
-                                      style: TextStyle(fontSize: 10, letterSpacing: 4, color: MusaiTheme.vitalRed),
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 4, color: MusaiTheme.vitalRed),
                                     ),
                                   ),
 
                                 const SizedBox(height: 80),
                                 
                                 // MENTOR SELECTOR
-                                Row(
+                                const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const MentorButton(mentor: Mentor.eute, label: "EUTE"),
-                                    const SizedBox(width: 12),
-                                    const MentorButton(mentor: Mentor.saravi, label: "SARAVÍ"),
-                                    const SizedBox(width: 12),
-                                    const MentorButton(mentor: Mentor.orfio, label: "ORFIO"),
+                                    MentorButton(mentor: Mentor.eute, label: "EUTE"),
+                                    SizedBox(width: 12),
+                                    MentorButton(mentor: Mentor.saravi, label: "SARAVÍ"),
+                                    SizedBox(width: 12),
+                                    MentorButton(mentor: Mentor.orfio, label: "ORFIO"),
                                   ],
                                 ),
                                 
@@ -516,8 +536,65 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                           activeColor: mentorState.primaryColor,
                         ),
                       ),
-                      Text("${hw.bpm}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      // [PREMIUM-CONTROLS] Stepped BPM Layout
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildStepButton(Icons.remove, () {
+                            ref.read(hardwareProvider.notifier).setBpm((hw.bpm - 1).clamp(30, 300));
+                          }, mentorState.primaryColor),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 60,
+                            child: TextField(
+                              onSubmitted: (val) {
+                                final newBpm = int.tryParse(val);
+                                if (newBpm != null) {
+                                  ref.read(hardwareProvider.notifier).setBpm(newBpm.clamp(30, 300));
+                                }
+                              },
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                              textAlign: TextAlign.center,
+                              decoration: InputDecoration(
+                                hintText: "${hw.bpm}",
+                                hintStyle: const TextStyle(color: Colors.white),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: mentorState.primaryColor.withAlpha(80))),
+                                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: mentorState.primaryColor)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildStepButton(Icons.add, () {
+                            ref.read(hardwareProvider.notifier).setBpm((hw.bpm + 1).clamp(30, 300));
+                          }, mentorState.primaryColor),
+                        ],
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text("TIME SIGNATURE", style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 2)),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [2, 3, 4, 6].map((sig) {
+                      final isActive = hw.signature == sig;
+                      return InkWell(
+                        onTap: () => ref.read(hardwareProvider.notifier).setSignature(sig),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: isActive ? mentorState.primaryColor : Colors.white10),
+                            color: isActive ? mentorState.primaryColor.withAlpha(50) : null,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text("$sig/4", style: TextStyle(color: isActive ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+                        ),
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -644,22 +721,45 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
       ),
     );
   }
+
+  Widget _buildStepButton(IconData icon, VoidCallback onTap, Color color) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color.withAlpha(30),
+          border: Border.all(color: color.withAlpha(100)),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+    );
+  }
 }
 
-class _TunerGauge extends StatelessWidget {
+class _TunerGauge extends ConsumerWidget {
   final double cents;
   final Color primaryColor;
 
   const _TunerGauge({required this.cents, required this.primaryColor});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      height: 30,
-      child: CustomPaint(
-        painter: _GaugePainter(cents: cents, color: primaryColor),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveStream = ref.watch(liveStreamStateProvider).value;
+    final noteName = liveStream?.noteName ?? "--";
+    
+    return Column(
+      children: [
+        SizedBox(
+          width: 300,
+          height: 40,
+          child: CustomPaint(
+            painter: _GaugePainter(cents: cents, color: primaryColor, noteName: noteName),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -667,8 +767,9 @@ class _TunerGauge extends StatelessWidget {
 class _GaugePainter extends CustomPainter {
   final double cents; // -50 to +50
   final Color color;
+  final String noteName;
 
-  _GaugePainter({required this.cents, required this.color});
+  _GaugePainter({required this.cents, required this.color, required this.noteName});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -698,7 +799,7 @@ class _GaugePainter extends CustomPainter {
     final clampedCents = cents.clamp(-50.0, 50.0);
     final indicatorX = centerX + (clampedCents * size.width / 100);
     
-    final glowColor = (cents.abs() < 5) ? color : Colors.white.withOpacity(0.8);
+    final glowColor = (cents.abs() < 5) ? color : Colors.white.withValues(alpha: 0.8);
     
     final indicatorPaint = Paint()
       ..color = glowColor
@@ -714,12 +815,34 @@ class _GaugePainter extends CustomPainter {
       ..strokeWidth = 2.0;
     
     canvas.drawLine(
-      Offset(indicatorX, centerY - 10),
-      Offset(indicatorX, centerY + 10),
+      Offset(indicatorX, centerY - 15),
+      Offset(indicatorX, centerY + 15),
       needlePaint,
     );
+
+    // [SOVEREIGN-NEIGHBORS] Display neighbor semitones
+    if (noteName != "--") {
+       final labelStyle = TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 1);
+       final activeStyle = TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2);
+       
+       // Center Note
+       _drawCenteredText(canvas, noteName, Offset(centerX, centerY - 25), cents.abs() < 5 ? activeStyle : labelStyle);
+       
+       // Neighbor Hints (-50 and +50 cents)
+       _drawCenteredText(canvas, "♭", Offset(0, centerY - 25), labelStyle);
+       _drawCenteredText(canvas, "♯", Offset(size.width, centerY - 25), labelStyle);
+    }
   }
 
+  void _drawCenteredText(Canvas canvas, String text, Offset offset, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, offset - Offset(tp.width / 2, tp.height / 2));
+  }
+ 
   @override
-  bool shouldRepaint(covariant _GaugePainter oldDelegate) => oldDelegate.cents != cents;
+  bool shouldRepaint(covariant _GaugePainter oldDelegate) => 
+      oldDelegate.cents != cents || oldDelegate.noteName != noteName;
 }

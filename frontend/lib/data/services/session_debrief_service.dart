@@ -6,7 +6,7 @@ class SessionDebriefService {
 
   SessionDebriefService()
       : _model = GenerativeModel(
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-1.5-flash',
           apiKey: SecretManager().apiKey,
         );
 
@@ -28,10 +28,14 @@ Do not use conversational filler. Be direct and objective.
 
     try {
       final content = [Content.text(prompt)];
-      final response = await _model.generateContent(content);
+      // [TELEMETRY-BRIDGE] Hardened request with timeout
+      final response = await _model.generateContent(content)
+          .timeout(const Duration(seconds: 15));
+      
       return response.text ?? "DEBRIEF GENERATION FAILED.";
     } catch (e) {
-      return "DEBRIEF ERROR: ${e.toString()}";
+      // Graceful failure for Vault UI stability
+      return "DEBRIEF OFFLINE: ${e.toString().contains('timeout') ? 'REQUEST_TIMEOUT' : 'API_ERROR'}";
     }
   }
 }

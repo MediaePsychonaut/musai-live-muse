@@ -15,11 +15,12 @@ class PitchDetectorParams {
 class PitchDetectorResult {
   final double pitch;
   final double centsDeviation; // Added: Deviation from A440
+  final String noteName;
   final double volume;
-  final List<double> spectrum;
-  final double violinResonance;
+  final Float64List spectrum;
+  final double resonance;
 
-  PitchDetectorResult(this.pitch, this.centsDeviation, this.volume, this.spectrum, this.violinResonance);
+  PitchDetectorResult(this.pitch, this.centsDeviation, this.noteName, this.volume, this.spectrum, this.resonance);
 }
 
 class PitchDetector {
@@ -70,7 +71,7 @@ class PitchDetector {
   }
 
   static PitchDetectorResult _analyze(SovereignFFT fft, Float32List samples, Uint8List frame, int sampleRate) {
-    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0, 0.0, const [], 0.0);
+    if (frame.isEmpty) return PitchDetectorResult(0.0, 0.0, "--", 0.0, Float64List(0), 0.0);
 
     // Convert to float samples into the pre-allocated buffer
     final numSamples = math.min(samples.length, frame.length ~/ 2);
@@ -89,18 +90,26 @@ class PitchDetector {
     }
 
     final volume = math.sqrt(sumSq / numSamples);
-    if (volume < 0.01) return PitchDetectorResult(0.0, 0.0, volume, const [], 0.0);
+    // [SENSORY-RECLAMATION] Surgical Threshold for Tuner Sensitivity
+    if (volume < 0.002) {
+      return PitchDetectorResult(0.0, 0.0, "--", volume, Float64List(fft.n ~/ 2), 0.0);
+    }
 
     // [SPECTRAL-EAR] Noise Suppression Scaffold
     _applyNoiseSuppression(samples);
 
-    //Simple Autocorrelation
+    // [SENSORY-STABILIZATION] Normalized Autocorrelation
+    // Ensures threshold (0.4) is independent of signal volume (0.002 floor)
     double maxCorr = -1.0;
     int bestLag = -1;
 
     // Search range for pitch (e.g., 40Hz to 1000Hz)
     final minLag = sampleRate ~/ 1000;
     final maxLag = sampleRate ~/ 40;
+
+    // Pre-calculate signal energy for normalization
+    double energy = sumSq / numSamples;
+    if (energy < 1e-10) energy = 1.0; // Prevent div by zero
 
     for (int lag = minLag; lag < maxLag; lag++) {
       double corr = 0;
@@ -110,28 +119,27 @@ class PitchDetector {
         count++;
       }
       if (count > 0) {
-        corr /= count;
-        if (corr > maxCorr) {
-          maxCorr = corr;
+        // Normalize by energy to make threshold volume-independent
+        double normalizedCorr = (corr / count) / energy;
+        if (normalizedCorr > maxCorr) {
+          maxCorr = normalizedCorr;
           bestLag = lag;
         }
       }
     }
 
     double pitch = 0.0;
-    if (bestLag > 0 && maxCorr > 0.1) {
+    // [THRESHOLD-ALIGNMENT] 0.5 correlation is the typical cutoff for periodicity
+    if (bestLag > 0 && maxCorr > 0.45) {
       // [PITCH-SOVEREIGNTY] Parabolic Interpolation for sub-bin precision
-      double bestCorr = maxCorr;
       double leftCorr = 0;
       double rightCorr = 0;
       
       if (bestLag > minLag && bestLag < maxLag - 1) {
-        // Calculate neighbors
-        _calculateLagCorr(samples, bestLag - 1, (c) => leftCorr = c);
-        _calculateLagCorr(samples, bestLag + 1, (c) => rightCorr = c);
+        _calculateLagCorr(samples, bestLag - 1, (c) => leftCorr = c / energy);
+        _calculateLagCorr(samples, bestLag + 1, (c) => rightCorr = c / energy);
         
-        // Parabolic peak formula: p = (left - right) / (2 * (left - 2*best + right))
-        double denominator = 2 * (leftCorr - 2 * bestCorr + rightCorr);
+        double denominator = 2 * (leftCorr - 2 * maxCorr + rightCorr);
         double delta = (denominator != 0) ? (leftCorr - rightCorr) / denominator : 0.0;
         pitch = sampleRate / (bestLag + delta);
       } else {
@@ -147,14 +155,20 @@ class PitchDetector {
     
     // [NOTE-INTELLIGENCE] Find nearest note and relative deviation
     double centsDeviation = 0.0;
+    String noteName = "--";
     if (pitch > 0) {
       // MIDI formula: n = 12 * log2(f/440) + 69
       double midiValue = 12 * (math.log(pitch / 440.0) / math.ln2) + 69.0;
       int nearestMidi = midiValue.round();
       centsDeviation = (midiValue - nearestMidi) * 100.0;
+      
+      const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+      int octave = (nearestMidi ~/ 12) - 1;
+      int noteIndex = nearestMidi % 12;
+      noteName = "${notes[noteIndex]}$octave";
     }
 
-    return PitchDetectorResult(pitch, centsDeviation, volume, magnitudeSpectrum, resonance);
+    return PitchDetectorResult(pitch, centsDeviation, noteName, volume, magnitudeSpectrum, resonance);
   }
 
   static void _calculateLagCorr(Float32List samples, int lag, Function(double) onResult) {

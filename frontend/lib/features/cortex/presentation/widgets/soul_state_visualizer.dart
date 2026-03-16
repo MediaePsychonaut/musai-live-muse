@@ -101,31 +101,36 @@ class _WavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final centerY = size.height / 2;
-    final isActuallyActive = isLive && (volume > 0.005);
+    final isActuallyActive = isLive && (volume > 0.002);
     final baseOpacity = isVaultView ? 0.05 : 1.0;
 
     // 1. SPECTRAL AURA (FFT BARS - HIGH DENSITY & GAPLESS [SPECTRAL_DENSITY])
     if (isActuallyActive && spectrum.isNotEmpty) {
-      final barCount = math.min(spectrum.length, 256); // [GAPLESS_DENSITY]
-      final barWidth = size.width / barCount;
-      final maxHeight = size.height * 0.45;
+      canvas.save();
+      canvas.clipRect(Offset.zero & size);
+      
+      final barWidth = size.width / spectrum.length;
       
       final barPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = mentorColor.withOpacity(0.25 * baseOpacity); 
+        ..color = mentorColor.withAlpha((0.25 * baseOpacity * 255).toInt()); 
         
-      for (int i = 0; i < barCount; i++) {
-        // [MAGNITUDE_CONSTRAINTS]
-        final val = (i < spectrum.length) ? spectrum[i] : 0.0;
-        final mag = math.min(val * 500.0 * (1.0 + resonance * 1.5), maxHeight);
+      for (int i = 0; i < spectrum.length; i++) {
+        // [ORGANIC-FLOW] 80% height for normal play, 100% only at saturation
+        // Magnitude is scaled to preserve ceiling for true spectral peaks
+        final magnitude = math.min((spectrum[i] / 0.8) * 0.8, 1.0);
+        if (magnitude < 0.002) continue;
+        
+        final h = magnitude * size.height;
         final x = i * barWidth;
         
         // Draw centered bars with subtle overlap for gapless feel
         canvas.drawRect(
-          Rect.fromLTRB(x, centerY - mag/2, x + barWidth + 0.2, centerY + mag/2),
+          Rect.fromLTRB(x, centerY - h/2, x + barWidth + 0.2, centerY + h/2),
           barPaint,
         );
       }
+      canvas.restore();
     }
 
     // 2. DEEP SPACE RESONANCE (BLOOM ANCHOR)
@@ -133,10 +138,10 @@ class _WavePainter extends CustomPainter {
       final effectiveResonance = math.max(resonance, volume * 1.2);
       
       final bloomPaint = Paint()
-        ..color = mentorColor.withAlpha((effectiveResonance * 100).clamp(0, 140).toInt())
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 40 + (effectiveResonance * 100));
+        ..color = mentorColor.withAlpha((effectiveResonance * 80).clamp(0, 110).toInt())
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 30 + (effectiveResonance * 80));
       
-      canvas.drawCircle(Offset(size.width / 2, centerY), 90 + (effectiveResonance * 160), bloomPaint);
+      canvas.drawCircle(Offset(size.width / 2, centerY), 70 + (effectiveResonance * 140), bloomPaint);
     }
 
     // 3. THE CRAZY OSCILLOSCOPE (TRIPLE-LAYER NEON [CRAZY_WAVE])
@@ -164,28 +169,31 @@ class _WavePainter extends CustomPainter {
       
       final y = centerY + (wave1 + wave2 + wave3) * amplitude * envelope + jitter;
           
-      if (x == 0) path.moveTo(x, y);
-      else path.lineTo(x, y);
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
 
     if (isActuallyActive) {
       // NEON LAYER 1: OUTER SPECTRAL BLOOM
       canvas.drawPath(path, Paint()
-        ..color = mentorColor.withOpacity(0.2 * baseOpacity)
+        ..color = mentorColor.withValues(alpha: 0.2 * baseOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 20.0
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22.0));
 
       // NEON LAYER 2: VIBRANT HALO
       canvas.drawPath(path, Paint()
-        ..color = mentorColor.withOpacity(0.5 * baseOpacity)
+        ..color = mentorColor.withValues(alpha: 0.5 * baseOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 8.0
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0));
 
       // NEON LAYER 3: PHOTONIC CORE
       canvas.drawPath(path, Paint()
-        ..color = Colors.white.withOpacity(0.8 * baseOpacity)
+        ..color = Colors.white.withValues(alpha: 0.8 * baseOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0));

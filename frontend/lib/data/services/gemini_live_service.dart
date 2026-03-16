@@ -29,6 +29,9 @@ class GeminiLiveService {
   double lastEuteAmplitude = 0.0;
   int lastPulseTick = 0;
   double lastCentsDeviation = 0.0;
+  
+  // [PROTOCOL-GUARDIAN] Tool-Call Buffering
+  final List<Map<String, dynamic>> _pendingToolResponses = [];
 
   static const String _host = 'generativelanguage.googleapis.com';
 
@@ -96,11 +99,9 @@ class GeminiLiveService {
             if (toolCall != null) {
               final calls = toolCall['function_calls'] ?? toolCall['functionCalls'];
               if (calls is List) {
-                for (final call in calls) {
-                  _handleFunctionCall(call, onHardwareCommand);
-                }
+                _handleFunctionCalls(calls, onHardwareCommand);
               } else {
-                _handleFunctionCall(toolCall, onHardwareCommand);
+                _handleFunctionCalls([toolCall], onHardwareCommand);
               }
             }
 
@@ -130,10 +131,11 @@ class GeminiLiveService {
               if (modelTurn != null) {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
+                  final List<dynamic> batchCalls = [];
                   for (final part in parts) {
                     final functionCall = part['function_call'] ?? part['functionCall'];
                     if (functionCall != null) {
-                      _handleFunctionCall(functionCall, onHardwareCommand);
+                      batchCalls.add(functionCall);
                     }
 
                     final inlineData = part['inline_data'] ?? part['inlineData'];
@@ -151,16 +153,20 @@ class GeminiLiveService {
                       }
                     }
                   }
+                  if (batchCalls.isNotEmpty) {
+                    _handleFunctionCalls(batchCalls, onHardwareCommand);
+                  }
                 }
               }
             }
 
-            // [TURN-COMPLETION] Detect turn_complete to reset state
+            // [TURN-COMPLETION] Detect turn_complete to reset state and dispatch tools
             if (serverContent != null) {
               final bool turnComplete = serverContent['turn_complete'] ?? serverContent['turnComplete'] ?? false;
               if (turnComplete) {
                 debugPrint("MUSE_LOG: [EUTE] model_turn_complete detected. Resetting turn flag.");
                 _isTurnActive = false;
+                _dispatchPendingToolResponses(); // [PROTOCOL-GUARDIAN]
                 AudioOutputService().stopVocalStream(); // Close stream if no pulse/drone
               }
             }
@@ -579,54 +585,81 @@ class GeminiLiveService {
     }
   }
 
-  void _handleFunctionCall(Map<String, dynamic> functionCall, Function(String name, Map<String, dynamic> args)? onHardwareCommand) {
-    if (_isDisposed) return;
-    final name = functionCall['name'];
-    final id = functionCall['id']; // ID handles async mappings
-    final args = functionCall['args'] as Map<String, dynamic>;
+  void _handleFunctionCalls(List<dynamic> calls, Function(String name, Map<String, dynamic> args)? onHardwareCommand) {
+    if (_isDisposed || calls.isEmpty) return;
 
-    debugPrint("MUSE_LOG: [EUTE] Function Call Triggered: $name(args: $args)");
+    final List<Map<String, dynamic>> responseParts = [];
 
-    // Notify UI (Sensory Sync)
-    onHardwareCommand?.call(name, args);
-    
-    Map<String, dynamic> responsePayload = {
-      "result": "success"
-    };
+    for (var callData in calls) {
+      final Map<String, dynamic> functionCall = callData as Map<String, dynamic>;
+      final name = functionCall['name'] ?? functionCall['function_name'];
+      final id = functionCall['id'] ?? functionCall['call_id']; 
+      final idKey = functionCall.containsKey('call_id') ? 'call_id' : 'id';
+      final args = functionCall['args'] as Map<String, dynamic>? ?? {};
 
-    if (name == 'set_metronome' || name == 'set_drone' || name == 'start_practice_session' || name == 'stop_practice_session') {
-      // Logic handled via onHardwareCommand callback to ensure Provider Sync
-    } else {
-      responsePayload = {"result": "error", "message": "Unknown function"};
+      debugPrint("MUSE_LOG: [EUTE] Protocol Anchor: Executing $name(args: $args)");
+
+      // Notify UI (Sensory Sync)
+      onHardwareCommand?.call(name, args);
+      
+      Map<String, dynamic> responsePayload = {
+        "result": "success"
+      };
+
+      if (name == 'set_metronome' || name == 'set_drone' || name == 'start_practice_session' || name == 'stop_practice_session') {
+        // Logic handled via onHardwareCommand
+      } else {
+        responsePayload = {"result": "error", "message": "Unknown function"};
+      }
+
+      responseParts.add({
+        "function_response": {
+          "name": name,
+          if (id != null) idKey: id,
+          "response": responsePayload
+        }
+      });
     }
 
-    final Map<String, dynamic> functionResponseMsg;
-    
-    final responsePart = {
-      "function_response": {
-        "name": name,
-        if (id != null) "id": id,
-        "response": responsePayload
-      }
-    };
+    _pendingToolResponses.addAll(responseParts);
+    debugPrint("MUSE_LOG: [EUTE] Tool responses buffered (${_pendingToolResponses.length} total). Waiting for server_turn_complete.");
+  }
 
-    functionResponseMsg = {
-      "client_content": {
-        "turns": [
-          {
-            "role": "user",
-            "parts": [responsePart]
-          }
-        ],
-        "turn_complete": true
-      }
-    };
-    
+  void _dispatchPendingToolResponses() {
+    if (_isDisposed || _pendingToolResponses.isEmpty) return;
+
     if (_channel != null && !_isDisposed) {
       try {
-        _channel!.sink.add(jsonEncode(functionResponseMsg));
+        // [PROTOCOL-HARDENING] First, send the results without turn_complete
+        final resultsPayload = {
+          "client_content": {
+            "turns": [
+              {
+                "role": "user",
+                "parts": List<Map<String, dynamic>>.from(_pendingToolResponses)
+              }
+            ],
+            "turn_complete": false
+          }
+        };
+        _channel!.sink.add(jsonEncode(resultsPayload));
+        
+        // Then, send an empty turn_complete after a micro-delay to anchor the state
+        Future.delayed(const Duration(milliseconds: 20), () {
+          if (_channel != null && !_isDisposed) {
+            final closurePayload = {
+              "client_content": {
+                "turn_complete": true
+              }
+            };
+            _channel!.sink.add(jsonEncode(closurePayload));
+            debugPrint("MUSE_LOG: [EUTE] Protocol Guardian: Dispatched buffered tool responses and turn_complete closure.");
+          }
+        });
+
+        _pendingToolResponses.clear();
       } catch (e) {
-        debugPrint("MUSE_LOG: [EUTE] Sink Add Error (Function Response): $e");
+        debugPrint("MUSE_LOG: [EUTE] Sink Add Error (Buffered Response): $e");
       }
     }
   }

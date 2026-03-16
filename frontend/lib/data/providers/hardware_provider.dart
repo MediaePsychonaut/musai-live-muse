@@ -6,6 +6,7 @@ class HardwareState {
   final bool isMetronomeActive;
   final bool isDroneActive;
   final int bpm;
+  final int signature; // Time Signature numerator
   final String key; // Drone Key
   final DateTime? lastAgencyCommandTimestamp;
 
@@ -13,6 +14,7 @@ class HardwareState {
     this.isMetronomeActive = false,
     this.isDroneActive = false,
     this.bpm = 60,
+    this.signature = 4,
     this.key = 'A4',
     this.lastAgencyCommandTimestamp,
   });
@@ -21,6 +23,7 @@ class HardwareState {
     bool? isMetronomeActive,
     bool? isDroneActive,
     int? bpm,
+    int? signature,
     String? key,
     DateTime? lastAgencyCommandTimestamp,
   }) {
@@ -28,6 +31,7 @@ class HardwareState {
       isMetronomeActive: isMetronomeActive ?? this.isMetronomeActive,
       isDroneActive: isDroneActive ?? this.isDroneActive,
       bpm: bpm ?? this.bpm,
+      signature: signature ?? this.signature,
       key: key ?? this.key,
       lastAgencyCommandTimestamp: lastAgencyCommandTimestamp ?? this.lastAgencyCommandTimestamp,
     );
@@ -67,6 +71,7 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
   }
 
   void setSignature(int signature) {
+    state = state.copyWith(signature: signature);
     _pulseEngine.updateSignature(signature);
   }
 
@@ -78,7 +83,6 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
     }
   }
   
-  // TO BE CALLED BY GEMINI FUNCTION HANDLERS IN V7.0 AND UI MANUAL OVERRIDES
   void toggleMetronome() {
     final newState = !state.isMetronomeActive;
     state = state.copyWith(isMetronomeActive: newState);
@@ -100,32 +104,22 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
     }
   }
 
-  // Calculates BPM based on manual user taps
   void tapTempo() {
     final now = DateTime.now();
-    
-    // Reset taps if more than 2 seconds have passed since the last tap
     if (_tapTimestamps.isNotEmpty && now.difference(_tapTimestamps.last).inSeconds > 2) {
       _tapTimestamps.clear();
     }
-
     _tapTimestamps.add(now);
-
-    // Keep only the last 4 taps to calculate a moving average
     if (_tapTimestamps.length > 4) {
       _tapTimestamps.removeAt(0);
     }
-
     if (_tapTimestamps.length >= 2) {
       int totalMs = 0;
       for (int i = 1; i < _tapTimestamps.length; i++) {
         totalMs += _tapTimestamps[i].difference(_tapTimestamps[i - 1]).inMilliseconds;
       }
-      
       final averageMs = totalMs / (_tapTimestamps.length - 1);
       final derivedBpm = (60000 / averageMs).round();
-      
-      // Clamp between 30 and 300 BPM for safety
       if (derivedBpm >= 30 && derivedBpm <= 300) {
         setBpm(derivedBpm);
       }

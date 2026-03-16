@@ -1,71 +1,55 @@
-NEW TEST
+\# Hardware Testing Protocol: SOVEREIGN-ASCENSION \[v18.0\]
 
-Hud looks great jsut some details that we can improve, mic button is now squared, it was much betthe being a cercle. MUSE MEDITATING message lost a bit of its glow. BLurry effect when changing from one mentor to another is perfect. All buttons are now the same even iff changing mentor, but well lets leav teh HUD polishment for later. Just one important detail of the hud FFT has too much high that excited the screen limit, and osciloscome is just a simple sine wave with no reaction at all So yeah it is important to limit the hight of the FFT display; landscape view looks great just if FFT display top and button range could be constrainied to the screen size, and btw it would be awsem if we could remove.
+\*\*Tester\*\*: 赤冥蝠  
 
-TUNER is pretty much just a turn on or off button, totally doing nothing but i like the new size of the 0.0 hz that it shows,   
-TUNER MUST WORK WITH THE PITCH DETECTION PROTOCOL WHIC FORM WHAT I KNOW SHOULD USE THE FFT INFORMATION TO EASILY DETERMINE WHAT IS THE FUNDAMENTAL hz of the sound, after that it should just check with our hz to note/key table to see which is the closest note, after which it should just do a “error” calculation to state how far is it to the right closes note/hz we should have a visual representation that indicate if performance hz should be sharpened (higher / move to the right) or flatten (lower / move to the left).
+\*\*Objective\*\*: Final clinical verification of the Sanctuary HUD's sub-perceptual sensitivity and protocol resilience.
 
-Ok now lets press the mic on with EUTE\>
+\---
 
-USER is unable to press in the mic START SESSION button is triggering when user tries to tap on the mic  
-   
-We are back to having a enormous spam of \>
+\#\# 🎻 A. THE CLINICAL SIGNAL (Sub-Perceptual Tuner)
 
- acquired max frames 4 max:2 \+ 2
+1\. PASS \* \*Whisper Test\*\*: Leave the mic in a near-silent room. Note name must be \`--\`. 
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+2\. FAIL  \*\*Subtle Resonance\*\*: Hum or play a single string at the absolute limit of audibility.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Expectation\*\*: Tuner identifies the note at \`0.002\` RMS.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Success Criteria\*\*: No "dead zone" for soft signals.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+MIC LOOKS SUPER SENSITIVE NOW, BUUT TUNER AND TUNING GRID STILL USELESS
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+\#\# 📡 B. THE BATTLE-HARDENED LINK (Protocol Resilience)  
+EUTE respond rapidly to my first greeting, after that i needed to repeat my self two or even three times for a new srespones, or in some cases it could just answer right away with no repetition.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+1\.  \*FAIL\*Tool-Batching Test\*\*: Ask EUTE/SARAVÍ: \*"Activate the metronome at 112 BPM and turn on the G3 drone."\*
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*FAIL\*Expectation\*\*: Both tools activate simultaneously.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Success Criteria\*\*: \*\*NO Close Code 1007.\*\* The connection remains solid.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+2\.  \*FAIL\*Concurrent Off\*\*: Ask to turn both off. Verify connection stability.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+ONCE AGAIN AFTER ACHIVING FIRST HARDWARE COMMAND SUCCESFULLY CODE TERMINATES ADN MUSE GETTS BACK TO MADITATING
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+\#\# 🎭 C. THE PREMIUM CONSOLE (Tactile HUD)
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+1\.  \*PASS\*Step-Tempo Test\*\*: Open Metronome modal. Tap the \`\[+\]\` and \`\[-\]\` buttons.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Expectation\*\*: BPM increments/decrements by exactly 1\.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+2\.  \*PARTIAL PASS, INCREAS TIMER TO 28 pt\*Cinematic Typography\*\*: Observe the HUD from 2 meters.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Expectation\*\*: The large Duration timer (24pt) and bold Objective (16pt) are easily legible.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+3\.  \*PARTIAL PASS, WE SHOULD THINK LIKE to reach the top/button limits then the amplitude of that “loudest” frequency should be double the average amplitudes, or something like that , in general FFT display should stay at 80% max limit only crossing it if frequency amplitude is truly truly “high” \*FFT Saturation\*\*: Play a loud, aggressive chord.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Expectation\*\*: FFT bars hit the edges only during the loudest peak. No "clipped" look during normal play.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+\#\# 🪵 D. THE MUSICAL VAULT (Surgical Persistence)
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+1\.  \*FAIL, DEBREIEN OFFLINE,: API ERROR, im wondering, what is the api we are trying to use for the debrief, it would be great to have a full on sovereign and offline debrief maker and display in the vault, (whats teh status of the simplified midi??) \*Sensitivity Log\*\*: Check a session summary in the Vault.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+    \- \*\*Expectation\*\*: Extremely quiet notes are recorded in the sequence history.
 
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
-
-E/BLASTBufferQueue(19633): \[db4743d SurfaceView\[com.example.frontend/com.example.frontend.MainActivity\]@0\#1\](f:1,a:4) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 4 max:2 \+ 2
+\*\*VERDICT\*\*: If all checks are \[PASS\], the Sanctuary has achieved absolute technical and biological sovereignty. 🏁🦅🦇🚀
 
