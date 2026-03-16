@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../core/audio/audio_recorder.dart';
 import '../../core/audio/audio_output_service.dart';
 import '../../core/dsp/pitch_detector.dart';
@@ -12,6 +13,7 @@ import 'engine_provider.dart';
 import 'hardware_provider.dart';
 import '../repositories/practice_ledger.dart';
 import '../services/session_debrief_service.dart';
+import '../services/lab_log_service.dart';
 
 enum LiveStreamStatus { disconnected, connecting, connected, error }
 
@@ -163,15 +165,19 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
             debugPrint("[DEBUG_COMMAND] Metronome Action: $active");
           } else if (name == 'set_drone') {
             final active = args['active'] ?? false;
-            hw.setDrone(active);
             if (active) {
               double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
               if (freq <= 0) freq = 196.0; 
               
               // [DIAG-63] Parse frequency to Note Name for HUD display
               final note = _mapFreqFromMidi(freq);
+              
+              // [PROTOCOL-ANCHOR-REPAIR] Direct frequency injection
+              hw.setDrone(true, frequency: freq);
               hw.setKey(note);
               debugPrint("[DEBUG_COMMAND] Drone Action: $active, Freq=$freq ($note)");
+            } else {
+              hw.setDrone(false);
             }
           } else if (name == 'start_practice_session') {
             final nameArg = args['name'] ?? "Neural Rehearsal";
@@ -242,6 +248,7 @@ class SensoryNotifier extends Notifier<void> {
     ref.listen<bool>(isSessionActiveProvider, (prev, isActive) => _syncSensoryState());
     ref.listen<AsyncValue<LiveStreamState>>(liveStreamStateProvider, (prev, status) => _syncSensoryState());
     ref.listen<bool>(tunerEnabledProvider, (prev, isTuner) => _syncSensoryState());
+    ref.listen<HardwareState>(hardwareProvider, (prev, next) => _syncSensoryState());
     
     // Initial sync
     _syncSensoryState();
@@ -250,15 +257,22 @@ class SensoryNotifier extends Notifier<void> {
   void _syncSensoryState() {
     final isSessionActive = ref.read(isSessionActiveProvider);
     final isTunerEnabled = ref.read(tunerEnabledProvider);
+    final hardwareState = ref.read(hardwareProvider);
+    final isMetronomeActive = hardwareState.isMetronomeActive;
+    final isDroneActive = hardwareState.isDroneActive;
     final streamStatus = ref.read(liveStreamStateProvider).value?.status;
     final isAiConnected = streamStatus == LiveStreamStatus.connected;
     
-    // PRIORITY: [MIC-SOVEREIGNTY]
-    // The microphone lifecycle is now strictly linked to active features (Session, Tuner, or AI Link).
-    if (isSessionActive || isTunerEnabled || isAiConnected) {
+    // PRIORITY: [MIC-SOVEREIGNTY] & [HARDWARE-SHIELD]
+    // The microphone lifecycle and screen wakelock are strictly linked to active features.
+    final bool isAnyFeatureActive = isSessionActive || isTunerEnabled || isAiConnected || isMetronomeActive || isDroneActive;
+    
+    if (isAnyFeatureActive) {
       _startSensoryLoop();
+      WakelockPlus.enable(); // [HARDWARE-SHIELD-PERSISTENCE]
     } else {
       _stopSensoryLoop();
+      WakelockPlus.disable(); // [HARDWARE-SHIELD-PERSISTENCE]
     }
   }
 
@@ -333,6 +347,10 @@ class SensoryNotifier extends Notifier<void> {
              latestVolume
            );
         }
+
+        if (latestVolume > 0.05) {
+           LabLogService().log("AUDIO_PEAK", "RMS_SPIKE", metadata: "RMS: ${latestVolume.toStringAsFixed(3)}");
+         }
 
         final service = notifier._service; 
         

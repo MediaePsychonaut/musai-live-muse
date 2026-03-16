@@ -9,6 +9,7 @@ import '../../core/net/channel_factory.dart';
 import '../providers/mentor_providers.dart';
 import '../providers/engine_provider.dart';
 import '../../core/audio/audio_output_service.dart';
+import '../services/lab_log_service.dart';
 
 class GeminiLiveService {
   final String apiKey;
@@ -594,10 +595,10 @@ class GeminiLiveService {
       final Map<String, dynamic> functionCall = callData as Map<String, dynamic>;
       final name = functionCall['name'] ?? functionCall['function_name'];
       final id = functionCall['id'] ?? functionCall['call_id']; 
-      final idKey = functionCall.containsKey('call_id') ? 'call_id' : 'id';
       final args = functionCall['args'] as Map<String, dynamic>? ?? {};
 
       debugPrint("MUSE_LOG: [EUTE] Protocol Anchor: Executing $name(args: $args)");
+      LabLogService().log("TOOL_EXEC", name, metadata: args.toString());
 
       // Notify UI (Sensory Sync)
       onHardwareCommand?.call(name, args);
@@ -615,13 +616,17 @@ class GeminiLiveService {
       responseParts.add({
         "function_response": {
           "name": name,
-          if (id != null) idKey: id,
+          if (id != null) "call_id": id,
           "response": responsePayload
         }
       });
     }
 
-    _pendingToolResponses.addAll(responseParts);
+    // [PROTOCOL-SANITY] Purge any null or empty objects before buffering
+    final cleanParts = responseParts.where((part) => part.isNotEmpty).toList();
+    if (cleanParts.isEmpty) return;
+
+    _pendingToolResponses.addAll(cleanParts);
     debugPrint("MUSE_LOG: [EUTE] Tool responses buffered (${_pendingToolResponses.length} total). Waiting for server_turn_complete.");
   }
 
@@ -630,7 +635,8 @@ class GeminiLiveService {
 
     if (_channel != null && !_isDisposed) {
       try {
-        // [PROTOCOL-HARDENING] First, send the results without turn_complete
+        // [DOUBLE-ANCHOR-HARDENING] 
+        // 1. Dispatch tool results first (turn_complete: false)
         final resultsPayload = {
           "client_content": {
             "turns": [
@@ -644,8 +650,9 @@ class GeminiLiveService {
         };
         _channel!.sink.add(jsonEncode(resultsPayload));
         
-        // Then, send an empty turn_complete after a micro-delay to anchor the state
-        Future.delayed(const Duration(milliseconds: 20), () {
+        // 2. Dispatch turn closure after staggered delay (30ms)
+        // This prevents the "empty turn" race condition in Gemini's Bidi protocol
+        Future.delayed(const Duration(milliseconds: 30), () {
           if (_channel != null && !_isDisposed) {
             final closurePayload = {
               "client_content": {
@@ -653,7 +660,8 @@ class GeminiLiveService {
               }
             };
             _channel!.sink.add(jsonEncode(closurePayload));
-            debugPrint("MUSE_LOG: [EUTE] Protocol Guardian: Dispatched buffered tool responses and turn_complete closure.");
+            debugPrint("MUSE_LOG: [EUTE] Protocol Anchor Hardened: Staggered closure dispatched.");
+            LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Batched closure with staggered delay");
           }
         });
 

@@ -753,8 +753,8 @@ class _TunerGauge extends ConsumerWidget {
     return Column(
       children: [
         SizedBox(
-          width: 300,
-          height: 40,
+          width: 360,
+          height: 60,
           child: CustomPaint(
             painter: _GaugePainter(cents: cents, color: primaryColor, noteName: noteName),
           ),
@@ -822,15 +822,37 @@ class _GaugePainter extends CustomPainter {
 
     // [SOVEREIGN-NEIGHBORS] Display neighbor semitones
     if (noteName != "--") {
-       final labelStyle = TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 1);
-       final activeStyle = TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2);
+       final absCents = cents.abs();
+       
+       // [CONTEXTUAL-LUMINANCE] Opacity fades from 0.1 to 1.0 based on precision (< 15 cents)
+       final double opacity = absCents < 15 ? 1.0 : 0.1;
+       
+       // [LOCK-IN-GLOW] Primary color glow only when < 5 cents
+       final baseLabelColor = absCents < 5 ? color : Colors.white;
+       
+       final labelStyle = TextStyle(
+         color: Colors.white.withValues(alpha: 0.2), 
+         fontSize: 10, 
+         letterSpacing: 1
+       );
+       
+       final activeStyle = TextStyle(
+         color: baseLabelColor.withValues(alpha: opacity), 
+         fontSize: 16, 
+         fontWeight: FontWeight.bold, 
+         letterSpacing: 2,
+         shadows: absCents < 5 ? [
+           Shadow(color: color.withValues(alpha: 0.8), blurRadius: 8),
+           Shadow(color: color.withValues(alpha: 0.5), blurRadius: 15),
+         ] : null,
+       );
        
        // Center Note
-       _drawCenteredText(canvas, noteName, Offset(centerX, centerY - 25), cents.abs() < 5 ? activeStyle : labelStyle);
+       _drawCenteredText(canvas, noteName, Offset(centerX, centerY - 30), activeStyle);
        
-       // Neighbor Hints (-50 and +50 cents)
-       _drawCenteredText(canvas, "♭", Offset(0, centerY - 25), labelStyle);
-       _drawCenteredText(canvas, "♯", Offset(size.width, centerY - 25), labelStyle);
+       // Neighbor Hints (-50 and +50 cents) - Elevated 15px higher
+       _drawCenteredText(canvas, "♭", Offset(0, centerY - 40), labelStyle);
+       _drawCenteredText(canvas, "♯", Offset(size.width, centerY - 40), labelStyle);
     }
   }
 

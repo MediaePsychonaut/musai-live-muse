@@ -53,10 +53,10 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
     }
   }
 
-  void setDrone(bool active) {
+  void setDrone(bool active, {double? frequency}) {
     state = state.copyWith(isDroneActive: active);
     if (active) {
-      final freq = PitchMatrix.a440Frequencies[state.key] ?? 440.0;
+      final freq = frequency ?? PitchMatrix.a440Frequencies[state.key] ?? 196.0;
       _pulseEngine.startDrone(freq);
     } else {
       _pulseEngine.stopDrone();
