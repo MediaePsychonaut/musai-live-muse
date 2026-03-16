@@ -51,7 +51,7 @@ class _SoulStateVisualizerState extends ConsumerState<SoulStateVisualizer>
           animation: _controller,
           builder: (context, child) {
             return CustomPaint(
-              size: Size(constraints.maxWidth, 200),
+              size: Size(constraints.maxWidth, constraints.maxHeight),
               painter: _WavePainter(
                 progress: _controller.value,
                 volume: volume,
@@ -96,38 +96,32 @@ class _WavePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = mentorColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-
     final centerY = size.height / 2;
+    final isActuallyActive = isLive && (volume > 0.005);
 
-    // 1. DEEP SPACE RESONANCE (BLOOM ANCHOR)
-    if (isLive) {
-      final technicalPulse = euteOutputAmplitude * 1.5;
-      final effectiveResonance = math.max(resonance, math.max(aiResonance, technicalPulse));
+    // 1. DEEP SPACE RESONANCE (ALPHA GLOW ANCHOR)
+    if (isActuallyActive) {
+      final effectiveResonance = math.max(resonance, volume * 0.8);
       
       final bloomPaint = Paint()
-        ..color = resonanceColor.withAlpha((effectiveResonance * 200).clamp(0, 255).toInt())
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 + (effectiveResonance * 40));
+        ..color = mentorColor.withAlpha((effectiveResonance * 150).clamp(0, 180).toInt())
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 + (effectiveResonance * 60));
       
-      canvas.drawCircle(Offset(size.width / 2, centerY), 40 + (effectiveResonance * 80), bloomPaint);
+      canvas.drawCircle(Offset(size.width / 2, centerY), 60 + (effectiveResonance * 120), bloomPaint);
     }
 
-    // 2. SPECTRAL RESONANCE (FFT BARS)
-    if (isLive && spectrum.isNotEmpty) {
+    // 2. SPECTRAL HARMONY (FFT BARS - FULL LUMINANCE)
+    if (isActuallyActive && spectrum.isNotEmpty) {
       final barPaint = Paint()
-        ..color = mentorColor.withAlpha(51) // 0.2 opacity
+        ..color = mentorColor.withAlpha(80) 
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
+        ..strokeWidth = 1.2;
         
-      final barCount = math.min(spectrum.length, 300);
+      final barCount = math.min(spectrum.length, 120); // Fewer bars, more impact
       final barWidth = size.width / barCount;
       
       for (int i = 0; i < barCount; i++) {
-        final magnitude = spectrum[i] * 120.0; // Scale for visibility
+        final magnitude = spectrum[i] * 400.0 * (1.0 + resonance); // Aggressive scaling
         final x = i * barWidth;
         
         canvas.drawLine(
@@ -138,31 +132,33 @@ class _WavePainter extends CustomPainter {
       }
     }
 
-    // 3. SOUL VIBRATION (THE WAVE)
+    // 3. SOUL VIBRATION (THE CRAZY OSCILLOSCOPE)
     final path = Path();
-    for (double x = 0; x <= size.width; x++) {
+    final wavePaint = Paint()
+      ..color = mentorColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+
+    for (double x = 0; x <= size.width; x += 2) {
       final normalizedX = x / size.width;
       
-      final baseAmplitude = isLive ? 15.0 : 4.0;
-      final surge = volume * 55.0;
-      final resonanceMod = resonance * 35.0;
-      final euteMod = euteOutputAmplitude * 45.0; 
+      // Multi-Sine Layering for "Crazy" motion
+      final baseAmplitude = isActuallyActive ? 40.0 : 8.0;
+      final audioSurge = volume * 180.0;
+      final resonanceMod = resonance * 60.0;
       
-      double fftModulation = 0.0;
-      if (isLive && spectrum.isNotEmpty) {
-        final fftIndex = (normalizedX * 10).toInt() % spectrum.length;
-        fftModulation = spectrum[fftIndex] * 25.0;
-      }
+      // Secondary harmonic
+      final secondaryWave = math.sin((normalizedX * 12.0 + progress * 5.0) * math.pi) * (audioSurge * 0.3);
       
-      final amplitude = baseAmplitude + surge + resonanceMod + euteMod + fftModulation;
-      
-      final baseFrequency = isLive ? 2.5 : 1.2;
-      final frequency = baseFrequency + (volume * 2.0) + (resonance * 1.5) + (euteOutputAmplitude * 2.0);
+      final amplitude = baseAmplitude + audioSurge + resonanceMod + secondaryWave;
+      final frequency = 2.0 + (volume * 4.0) + (resonance * 2.0);
 
-      final damping = math.sin(normalizedX * math.pi);
+      // Envelope: Taper ends to prevent flickering on screen edges
+      final envelope = math.sin(normalizedX * math.pi);
       
       final y = centerY + 
-          math.sin((normalizedX * frequency + progress) * 2 * math.pi) * amplitude * damping;
+          math.sin((normalizedX * frequency + progress * 2.5) * 2 * math.pi) * amplitude * envelope;
           
       if (x == 0) {
         path.moveTo(x, y);
@@ -171,16 +167,18 @@ class _WavePainter extends CustomPainter {
       }
     }
 
-    if (isLive) {
+    if (isActuallyActive) {
+      // Glow Layer for the Sine Wave
       canvas.drawPath(
         path,
-        paint..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + (volume * 10) + (resonance * 8) + (euteOutputAmplitude * 15)),
+        wavePaint..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 + (volume * 15)),
       );
     }
     
+    // Solid Core
     canvas.drawPath(
       path,
-      paint..maskFilter = null..color = mentorColor,
+      wavePaint..maskFilter = null..color = mentorColor,
     );
   }
 

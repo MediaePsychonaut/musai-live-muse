@@ -63,29 +63,35 @@ class PracticeLedger {
       'objective': objective,
     };
 
-    int isSynced = 0;
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc('default_user')
-          .collection('sessions')
-          .add(summaryMap);
-      isSynced = 1;
-    } on FirebaseException catch (e) {
-      debugPrint("MUSE_LOG: Firestore Sync Failed (Offline Rebound Active). Error: ${e.message}");
-    } catch (e) {
-      debugPrint("MUSE_LOG: Unexpected sync error. ${e.toString()}");
-    }
-
-    return await db.update(
+    // [VAULT-HARDENING] Update local database FIRST to ensure record persistence
+    await db.update(
       'sessions',
       {
         'end_time': endTime,
-        'is_synced': isSynced,
+        'is_synced': 0, // Default to unsynced until cloud confirms
       },
       where: 'id = ?',
       whereArgs: [sessionId],
     );
+
+    try {
+      // Limit Firestore sync to ensure it doesn't block the UI/Logic pipeline
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc('default_user')
+          .collection('sessions')
+          .add(summaryMap)
+          .timeout(const Duration(seconds: 5));
+
+      // Update sync status on success
+      await db.update('sessions', {'is_synced': 1}, where: 'id = ?', whereArgs: [sessionId]);
+    } on FirebaseException catch (e) {
+      debugPrint("MUSE_LOG: Firestore Sync Blocked. Error: ${e.message}");
+    } catch (e) {
+      debugPrint("MUSE_LOG: Unexpected sync error. ${e.toString()}");
+    }
+
+    return sessionId;
   }
 
   // Retry pending uploads

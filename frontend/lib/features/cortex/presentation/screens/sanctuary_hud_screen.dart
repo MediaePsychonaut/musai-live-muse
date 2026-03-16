@@ -50,19 +50,27 @@ class SanctuaryHudScreen extends ConsumerWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Background: Deep Space Anchor Gradient (V2.0)
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black,
-                  MusaiTheme.deepSpaceTeal,
-                ],
-                stops: [0.85, 1.0], // Teal at bottom with 15% visibility
+          // 1. Background: Deep Space Anchor Gradient Overlay
+          IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black,
+                    MusaiTheme.deepSpaceTeal.withAlpha(50), 
+                    MusaiTheme.deepSpaceTeal.withAlpha(120),
+                  ],
+                  stops: const [0.5, 0.8, 1.0],
+                ),
               ),
             ),
+          ),
+          
+          // 2. The "Beautiful Sine Wave" (Oscilloscope Glory Layer)
+          const IgnorePointer(
+            child: SoulStateVisualizer(),
           ),
           
           SafeArea(
@@ -186,9 +194,12 @@ class SanctuaryHudScreen extends ConsumerWidget {
                                       "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz",
                                       style: TextStyle(
                                         color: MusaiTheme.parchment.withAlpha(200),
-                                        fontSize: 16,
+                                        fontSize: 24, // Bolder Tuner Output
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 2,
+                                        shadows: [
+                                          Shadow(color: mentorState.primaryColor, blurRadius: 15),
+                                        ],
                                       ),
                                     ),
                                     Text(
@@ -199,9 +210,9 @@ class SanctuaryHudScreen extends ConsumerWidget {
                                         letterSpacing: 1.5,
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 20),
                                   ],
-                                  const SoulStateVisualizer(),
+                                  // Wave Visualizer removed from here - now in background Positioned.fill
                                 ],
                               ),
                             ),

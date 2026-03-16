@@ -55,11 +55,11 @@ class PitchDetector {
     final receivePort = ReceivePort();
     sendPort.send(receivePort.sendPort);
 
-    // [SOVEREIGN-FFT] Zero-allocation engine (size 1024)
-    final fft = SovereignFFT(1024);
+    // [SOVEREIGN-FFT] Zero-allocation engine (size 2048)
+    final fft = SovereignFFT(2048);
     
     // [V2.1] Pre-allocated pre-processor buffer
-    final samplesBuffer = Float32List(1024);
+    final samplesBuffer = Float32List(2048);
 
     receivePort.listen((message) {
       if (message is PitchDetectorParams) {
@@ -98,9 +98,9 @@ class PitchDetector {
     double maxCorr = -1.0;
     int bestLag = -1;
 
-    // Search range for pitch (e.g., 80Hz to 1000Hz)
+    // Search range for pitch (e.g., 40Hz to 1000Hz)
     final minLag = sampleRate ~/ 1000;
-    final maxLag = sampleRate ~/ 80;
+    final maxLag = sampleRate ~/ 40;
 
     for (int lag = minLag; lag < maxLag; lag++) {
       double corr = 0;

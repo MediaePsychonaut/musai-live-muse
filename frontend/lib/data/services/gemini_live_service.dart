@@ -79,6 +79,21 @@ class GeminiLiveService {
             }
 
             final decoded = jsonDecode(rawString);
+            if (decoded == null) return;
+
+            // [ROOT-TOOL-CALLS] Detect tool calls at the root level (List iteration)
+            final toolCall = decoded['tool_call'] ?? decoded['toolCall'];
+            if (toolCall != null) {
+              final calls = toolCall['function_calls'] ?? toolCall['functionCalls'];
+              if (calls is List) {
+                for (final call in calls) {
+                  _handleFunctionCall(call, onHardwareCommand);
+                }
+              } else {
+                _handleFunctionCall(toolCall, onHardwareCommand);
+              }
+            }
+
             if (decoded.containsKey('server_content') ||
                 decoded.containsKey('setup_complete') ||
                 decoded.containsKey('serverContent') ||
@@ -123,6 +138,16 @@ class GeminiLiveService {
                     }
                   }
                 }
+              }
+            }
+
+            // [TURN-COMPLETION] Detect turn_complete to reset state
+            if (serverContent != null) {
+              final bool turnComplete = serverContent['turn_complete'] ?? serverContent['turnComplete'] ?? false;
+              if (turnComplete) {
+                debugPrint("MUSE_LOG: [EUTE] model_turn_complete detected. Resetting turn flag.");
+                _isTurnActive = false;
+                AudioOutputService().stopVocalStream(); // Close stream if no pulse/drone
               }
             }
 
@@ -374,12 +399,23 @@ class GeminiLiveService {
     _subscription?.cancel();
     _channel?.sink.close();
     _channel = null;
+    AudioOutputService().stopVocalStream();
     debugPrint("MUSE_LOG: [EUTE] System Offline.");
   }
 
   void sendAudioFrame(Uint8List frame, {String? metadata}) {
     if (_channel == null) return;
-    _isTurnActive = false; // Reset turn flag on user activity
+    
+    // [BARGE-IN-DETECTION] Calculate RMS for intelligent purge
+    final double rms = _calculateRMS(frame);
+    if (rms > 0.05) {
+      if (_isTurnActive) {
+        debugPrint("MUSE_LOG: [EUTE] BARGE-IN DETECTED (RMS: ${rms.toStringAsFixed(3)}). Purging vocal buffer.");
+        AudioOutputService().clearVocalBuffer();
+        _isTurnActive = false;
+      }
+    }
+
     try {
       // 1. Surgical Mono Downmix with explicit safety
       final processedFrame = _enforceMono(frame);
@@ -498,11 +534,14 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
-        // [STABILIZATION] Purge buffer ONLY once at the start of a model turn
+        // [STABILIZATION] Purge buffer with a 100ms drain delay to prevent audio shredding
         if (!_isTurnActive) {
-          debugPrint("MUSE_LOG: [EUTE] model_turn detected. Purging vocal buffer for fresh response.");
-          AudioOutputService().clearVocalBuffer();
+          debugPrint("MUSE_LOG: [EUTE] model_turn detected. Draining remaining audio buffer...");
           _isTurnActive = true;
+          Future.delayed(const Duration(milliseconds: 100), () {
+             debugPrint("MUSE_LOG: [EUTE] Drain complete. Purging vocal buffer for fresh response.");
+             AudioOutputService().clearVocalBuffer();
+          });
         }
         
         final parts = modelTurn['parts'] as List?;
@@ -596,6 +635,21 @@ class GeminiLiveService {
       } catch (e) {
         debugPrint("MUSE_LOG: [EUTE] Sink Add Error (Function Response): $e");
       }
+    }
+  }
+
+  double _calculateRMS(Uint8List pcm) {
+    if (pcm.isEmpty) return 0.0;
+    try {
+      final samples = pcm.buffer.asInt16List(pcm.offsetInBytes, pcm.length ~/ 2);
+      double sum = 0.0;
+      for (final sample in samples) {
+        final normalized = sample / 32768.0;
+        sum += normalized * normalized;
+      }
+      return math.sqrt(sum / samples.length);
+    } catch (e) {
+      return 0.0;
     }
   }
 }

@@ -135,34 +135,48 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
           disconnect();
         },
         onHardwareCommand: (name, args) {
+          debugPrint("[DEBUG_COMMAND] Received: $name with args: $args");
           final hw = ref.read(hardwareProvider.notifier);
+          final previousState = ref.read(hardwareProvider);
+          debugPrint("[DEBUG_COMMAND] Pre-State: Metronome=${previousState.isMetronomeActive}, BPM=${previousState.bpm}, Drone=${previousState.isDroneActive}");
+          
           hw.triggerAgencyPulse(); // GLOBAL PULSE ON AGENCY
+          
           if (name == 'set_metronome') {
             final active = args['active'] ?? false;
             if (active) {
-              hw.setBpm((args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60);
+              final bpm = (args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60;
               final signature = (args['signature'] is int) ? args['signature'] as int : 4;
-              hw.setSignature(signature); // Pass signature to native PulseEngine
+              debugPrint("[DEBUG_COMMAND] Metronome Params: BPM=$bpm, Sig=$signature");
+              hw.setBpm(bpm);
+              hw.setSignature(signature); 
             }
-            hw.setMetronome(active); // TRIGGER START AFTER PARAMETERS
+            hw.setMetronome(active); 
+            debugPrint("[DEBUG_COMMAND] Metronome Action: $active");
           } else if (name == 'set_drone') {
             final active = args['active'] ?? false;
             hw.setDrone(active);
             if (active) {
               double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
-              if (freq <= 0) freq = 196.0; // Enforce G3 default
+              if (freq <= 0) freq = 196.0; 
               hw.setKey("${freq.toStringAsFixed(0)}Hz");
+              debugPrint("[DEBUG_COMMAND] Drone Action: $active, Freq=$freq");
             }
           } else if (name == 'start_practice_session') {
             final nameArg = args['name'] ?? "Neural Rehearsal";
             final focusArg = args['focus'] ?? "General Mastery";
             ref.read(sessionObjectiveProvider.notifier).state = "$nameArg: $focusArg";
             ref.read(isSessionActiveProvider.notifier).state = true;
-            ref.read(sessionTimerProvider.notifier).start(); // SYNC UI CLOCK
+            ref.read(sessionTimerProvider.notifier).start(); 
+            debugPrint("[DEBUG_COMMAND] Session Start: $nameArg");
           } else if (name == 'stop_practice_session') {
             ref.read(isSessionActiveProvider.notifier).state = false;
-            ref.read(sessionTimerProvider.notifier).stop(); // SYNC UI CLOCK
+            ref.read(sessionTimerProvider.notifier).stop(); 
+            debugPrint("[DEBUG_COMMAND] Session Stop");
           }
+          
+          final afterState = ref.read(hardwareProvider);
+          debugPrint("[DEBUG_COMMAND] Post-State: Metronome=${afterState.isMetronomeActive}, BPM=${afterState.bpm}, Drone=${afterState.isDroneActive}");
         },
       );
 
@@ -215,10 +229,13 @@ class SensoryNotifier extends Notifier<void> {
 
   void _syncSensoryState() {
     final isSessionActive = ref.read(isSessionActiveProvider);
-    final isAiConnected = ref.read(liveStreamStateProvider).value?.status == LiveStreamStatus.connected;
     final isTunerEnabled = ref.read(tunerEnabledProvider);
+    final streamStatus = ref.read(liveStreamStateProvider).value?.status;
+    final isAiConnected = streamStatus == LiveStreamStatus.connected;
     
-    if (isSessionActive || isAiConnected || isTunerEnabled) {
+    // PRIORITY: [MIC-SOVEREIGNTY]
+    // The microphone lifecycle is now strictly linked to active features (Session, Tuner, or AI Link).
+    if (isSessionActive || isTunerEnabled || isAiConnected) {
       _startSensoryLoop();
     } else {
       _stopSensoryLoop();
@@ -352,6 +369,7 @@ class SessionTimerNotifier extends StateNotifier<Duration> {
   SessionTimerNotifier() : super(Duration.zero);
 
   void start() {
+    state = Duration.zero; // INITIAL RESET TO PREVENT GHOSTING
     _startTime = DateTime.now();
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {

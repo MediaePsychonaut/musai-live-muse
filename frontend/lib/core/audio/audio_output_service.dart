@@ -69,6 +69,12 @@ class AudioOutputService {
     });
   }
 
+  void stopVocalStream() {
+    _channel.invokeMethod('stopVocal').catchError((e) {
+      debugPrint("NATIVE_SINK_ERROR: [STOP_VOCAL] $e");
+    });
+  }
+
   void dispose() {
     _channel.invokeMethod('dispose');
     _telemetryChannel.setMessageHandler(null);

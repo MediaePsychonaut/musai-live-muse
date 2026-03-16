@@ -66,6 +66,7 @@ private:
     double mOscillatorPhase = 0.0;
     double mBpm = 60.0;
     std::atomic<bool> mIsPlaying{false};
+    std::atomic<bool> mVocalActive{false}; // NEW: Track vocal stream dependency
     int mSampleRate = 48000;
 
     // Drone
@@ -144,7 +145,7 @@ public:
         std::lock_guard<std::recursive_mutex> lock(mLock);
         mIsPlaying = false;
         mVocalBuffer.clear();
-        if (!mDronePlaying && stream) {
+        if (!mDronePlaying && !mVocalActive && stream) {
             stream->requestStop();
             stream->close();
             stream.reset();
@@ -187,22 +188,29 @@ public:
         // mDronePlaying will be set to false by the audio thread once gain reaches 0
         LOGI("Drone Engine Stopping (Ramping Down)...");
     }
-
-    double writeVocalData(const int16_t* data, int32_t numSamples) {
-        if (numSamples <= 0) return 0.0;
-        // Optimization: Accumulate as int64_t to avoid per-sample conversion and division
-        int64_t sumSq = 0;
-        for (int i = 0; i < numSamples; ++i) {
-            int32_t s = data[i];
-            sumSq += (int64_t)s * s;
+    double writeVocalData(const int16_t* data, size_t numSamples) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        double sum = 0;
+        for (size_t i = 0; i < numSamples; ++i) {
+            double normalized = data[i] / 32768.0;
+            sum += normalized * normalized;
         }
-        // Normalize only once after accumulation
-        // (sumSq / numSamples) / (32768.0 * 32768.0)
-        double meanSq = (double)sumSq / (double)numSamples;
-        double rms = sqrt(meanSq) / 32768.0;
+        double rms = sqrt(sum / numSamples);
 
+        mVocalActive = true; 
         mVocalBuffer.write(data, numSamples);
         return rms;
+    }
+
+    void stopVocalStream() {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        mVocalActive = false;
+        if (!mIsPlaying && !mDronePlaying && stream) {
+            stream->requestStop();
+            stream->close();
+            stream.reset();
+            LOGI("Vocal Stream Termination: Closing Audio Bridge.");
+        }
     }
 
     void updateDroneFreq(double freq) {
@@ -360,4 +368,8 @@ Java_com_example_frontend_MainActivity_clearVocalBuffer(JNIEnv* env, jobject /* 
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_frontend_MainActivity_updateSignature(JNIEnv* env, jobject /* this */, jint signature) {
     engine.updateSignature(signature);
+}
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_stopVocalStream(JNIEnv* env, jobject /* this */) {
+    engine.stopVocalStream();
 }

@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
     external fun writeVocalData(data: ByteArray): Double
     external fun clearVocalBuffer()
     external fun updateSignature(signature: Int)
+    external fun stopVocalStream()
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +70,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "clearVocal" -> {
                     clearVocalBuffer()
+                    result.success(null)
+                }
+                "stopVocal" -> {
+                    stopVocalStream()
                     result.success(null)
                 }
                 "dispose" -> {
