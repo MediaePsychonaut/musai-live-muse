@@ -121,23 +121,27 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                             final isLandscape = orientation == Orientation.landscape;
                             
                             final indicatorsAndIdentity = isLandscape
-                                ? Padding(
+                                ? Container(
+                                    height: 120, // [APEX-ALIGNMENT] Fixed header zone
                                     padding: const EdgeInsets.symmetric(horizontal: 20),
                                     child: Stack(
                                       children: [
                                         // Indicators Background Row
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
-                                            _buildDroneIndicator(context, ref, hardwareState, mentorState),
-                                          ],
+                                        Align(
+                                          alignment: Alignment.center,
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
+                                              _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                            ],
+                                          ),
                                         ),
-                                        // [TERMINUS-ZENITH] Top-Centered Mentor Identity
+                                        // [TERMINUS-ZENITH] Top-Centered Mentor Identity [UI-CONTRAST-ZENITH]
                                         Align(
                                           alignment: Alignment.topCenter,
                                           child: Padding(
-                                            padding: const EdgeInsets.only(top: 10),
+                                            padding: const EdgeInsets.only(top: 20), // Final elevation polish
                                             child: _buildMentorIdentity(context, mentorState),
                                           ),
                                         ),
@@ -201,30 +205,35 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                   OrientationBuilder(
                                     builder: (context, orientation) {
                                       final bool isLandscape = orientation == Orientation.landscape;
-                                      final double tunerScale = isLandscape ? 1.35 : 1.0;
+                                      final double tunerScale = isLandscape ? 1.5 : 1.0;
                                       
-                                      return Transform.scale(
-                                        scale: tunerScale,
-                                        child: RepaintBoundary(
-                                          child: Column(
-                                            children: [
-                                              // Visual Deviation Gauge (Now handles the main label with Candy Opacity v2)
-                                              _TunerGauge(
-                                                cents: liveStream.value?.centsDeviation ?? 0.0,
-                                                primaryColor: mentorState.primaryColor,
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Text(
-                                                "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: mentorState.primaryColor.withAlpha(180),
-                                                  letterSpacing: 2.0,
-                                                  fontWeight: FontWeight.bold,
+                                      return OverflowBox(
+                                        maxWidth: double.infinity,
+                                        maxHeight: double.infinity,
+                                        child: Transform.scale(
+                                          scale: tunerScale,
+                                          child: RepaintBoundary(
+                                            child: Column(
+                                              children: [
+                                                // Visual Deviation Gauge (Now handles the main label with Candy Opacity v2)
+                                                _TunerGauge(
+                                                  cents: liveStream.value?.centsDeviation ?? 0.0,
+                                                  primaryColor: mentorState.primaryColor,
+                                                  secondaryColor: mentorState.secondaryColor,
                                                 ),
-                                              ),
-                                              const SizedBox(height: 20),
-                                            ],
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: mentorState.primaryColor.withAlpha(180),
+                                                    letterSpacing: 2.0,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 20),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       );
@@ -384,7 +393,12 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                     ),
                                     child: const Text(
                                       "COMPLETE SESSION",
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 4, color: MusaiTheme.vitalRed),
+                                      style: TextStyle(
+                                        fontSize: 14, 
+                                        fontWeight: FontWeight.bold, 
+                                        letterSpacing: 4, 
+                                        color: MusaiTheme.vitalRed
+                                      ),
                                     ),
                                   ),
 
@@ -741,8 +755,13 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
 class _TunerGauge extends ConsumerWidget {
   final double cents;
   final Color primaryColor;
+  final Color secondaryColor;
 
-  const _TunerGauge({required this.cents, required this.primaryColor});
+  const _TunerGauge({
+    required this.cents, 
+    required this.primaryColor, 
+    required this.secondaryColor
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -755,7 +774,12 @@ class _TunerGauge extends ConsumerWidget {
           width: 360,
           height: 80, // Slightly taller for evolved symbols
           child: CustomPaint(
-            painter: _GaugePainter(cents: cents, color: primaryColor, noteName: noteName),
+            painter: _GaugePainter(
+              cents: cents, 
+              secondaryColor: secondaryColor, 
+              primaryColor: primaryColor,
+              noteName: noteName
+            ),
           ),
         ),
       ],
@@ -765,10 +789,16 @@ class _TunerGauge extends ConsumerWidget {
 
 class _GaugePainter extends CustomPainter {
   final double cents; // -50 to +50
-  final Color color;
+  final Color secondaryColor;
+  final Color primaryColor;
   final String noteName;
 
-  _GaugePainter({required this.cents, required this.color, required this.noteName});
+  _GaugePainter({
+    required this.cents, 
+    required this.secondaryColor, 
+    required this.primaryColor,
+    required this.noteName
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -798,7 +828,8 @@ class _GaugePainter extends CustomPainter {
     final clampedCents = cents.clamp(-50.0, 50.0);
     final indicatorX = centerX + (clampedCents * size.width / 100);
     
-    final glowColor = (cents.abs() < 5) ? color : Colors.white.withValues(alpha: 0.8);
+    // [UI-CONTRAST-ZENITH] Shift to Secondary Color for Tuner precision
+    final glowColor = (cents.abs() < 5) ? secondaryColor : Colors.white.withValues(alpha: 0.8);
     
     final indicatorPaint = Paint()
       ..color = glowColor
@@ -809,11 +840,25 @@ class _GaugePainter extends CustomPainter {
     canvas.drawCircle(Offset(indicatorX, centerY), 6.0, indicatorPaint);
     
     // Draw Sharp Needle [HARDENED-INDICATOR]
+    final needleGlowPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.9) // Increased glow ring
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0)
+      ..strokeWidth = 6.0
+      ..strokeCap = StrokeCap.round;
+
     final needlePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 3.0 // Increased thickness
+      ..color = primaryColor // [CONTRAST-ZENITH] Primary colored needle
+      ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round;
     
+    // Draw Needle Glow First
+    canvas.drawLine(
+      Offset(indicatorX, centerY - 20),
+      Offset(indicatorX, centerY + 20),
+      needleGlowPaint,
+    );
+
+    // Draw Needle
     canvas.drawLine(
       Offset(indicatorX, centerY - 20),
       Offset(indicatorX, centerY + 20),
@@ -832,7 +877,7 @@ class _GaugePainter extends CustomPainter {
        
        // [LOCK-IN-GLOW-ZENITH] 
        final bool isLocked = absCents < 5;
-       final baseLabelColor = isLocked ? color : Colors.white;
+       final baseLabelColor = isLocked ? secondaryColor : Colors.white;
        final finalOpacity = isLocked ? 1.0 : opacity;
        
        final symbolStyle = TextStyle(
@@ -848,8 +893,8 @@ class _GaugePainter extends CustomPainter {
          fontWeight: FontWeight.bold, 
          letterSpacing: 2,
          shadows: isLocked ? [
-           Shadow(color: color.withValues(alpha: 0.9), blurRadius: 30), // HARDENED GLOW [TERMINUS-UI]
-           Shadow(color: color.withValues(alpha: 0.7), blurRadius: 45),
+           Shadow(color: secondaryColor.withValues(alpha: 0.9), blurRadius: 30), // HARDENED GLOW [TERMINUS-UI]
+           Shadow(color: secondaryColor.withValues(alpha: 0.7), blurRadius: 45),
          ] : null,
        );
        
@@ -872,5 +917,8 @@ class _GaugePainter extends CustomPainter {
  
   @override
   bool shouldRepaint(covariant _GaugePainter oldDelegate) => 
-      oldDelegate.cents != cents || oldDelegate.noteName != noteName;
+      oldDelegate.cents != cents || 
+      oldDelegate.noteName != noteName ||
+      oldDelegate.secondaryColor != secondaryColor ||
+      oldDelegate.primaryColor != primaryColor;
 }

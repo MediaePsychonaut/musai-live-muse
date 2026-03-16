@@ -118,6 +118,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         name: currentMentorData.name,
         role: currentMentorData.role,
         primaryColor: currentMentorData.primaryColor,
+        secondaryColor: currentMentorData.secondaryColor,
         borderRadius: currentMentorData.borderRadius,
         voiceName: currentMentorData.voiceName,
         systemInstruction: extendedInstruction,

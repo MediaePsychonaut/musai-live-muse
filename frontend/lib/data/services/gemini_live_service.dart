@@ -573,11 +573,10 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
-        // [TERMINUS-DATA] Immediate Audio Irrigation (Zero Bleed)
-        debugPrint("MUSE_LOG: [EUTE] model_turn detected. Irrigating vocal buffer (Zero Bleed).");
-        AudioOutputService().clearVocalBuffer();
-        
         if (!_isTurnActive) {
+          // [ACOUSTIC-RECLAMATION] Surgical Irrigation: Only purge on transition
+          debugPrint("MUSE_LOG: [EUTE] model_turn start detected. Irrigating vocal buffer.");
+          AudioOutputService().clearVocalBuffer();
           _isTurnActive = true;
         }
         
@@ -629,7 +628,13 @@ class GeminiLiveService {
       });
       
       Map<String, dynamic> responsePayload = {
-        "result": "success"
+        "result": "success",
+        "metadata": "CMD_ACK", // [ORCHESTRATION-ZENITH]
+        // [ORCHESTRATION-FEEDBACK] Explicit state confirmation for the AI
+        if (name == 'start_practice_session') "session_active": true,
+        if (name == 'stop_practice_session') "session_active": false,
+        if (name == 'set_metronome') "metronome_active": args['active'] ?? true,
+        if (name == 'set_drone') "drone_active": args['active'] ?? true,
       };
 
       if (name == 'set_metronome' || name == 'set_drone' || name == 'start_practice_session' || name == 'stop_practice_session') {
@@ -691,9 +696,15 @@ class GeminiLiveService {
               }
             };
             _channel!.sink.add(jsonEncode(closurePayload));
-            _isShieldedProcessing = false; // Release shield
-            debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched.");
-            LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Ultimatum delay (150ms) | SHIELD_OFF");
+            
+            // [SHIELD-LOCK-ZENITH] Only release if the command queue is finished
+            if (!_isProcessingQueue) {
+               _isShieldedProcessing = false; 
+               debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched. SHIELD_OFF.");
+               LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Ultimatum delay (150ms) | SHIELD_OFF");
+            } else {
+               debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched. SHIELD_KEPT_FOR_QUEUE.");
+            }
           }
         });
 
