@@ -266,4 +266,40 @@ class PracticeLedger {
 
     return rows.map((r) => (r['cents_deviation'] as num).toDouble()).toList();
   }
+
+  // [MUSICAL-VAULT] Analyze the vault to generate a contextual summary for the AI
+  Future<String> getMusicalPerformanceSummary() async {
+    final db = await _dbHelper.database;
+    
+    // 1. Identify the most practiced notes in the last 24 hours
+    final recentSessions = await db.query(
+      'sessions', 
+      where: "start_time > ?", 
+      whereArgs: [DateTime.now().subtract(const Duration(hours: 24)).toIso8601String()],
+      orderBy: 'start_time DESC'
+    );
+    
+    if (recentSessions.isEmpty) return "User is beginning a new practice cycle. No recent vault data available.";
+    
+    final sessionIds = recentSessions.map((s) => s['id']).join(',');
+    
+    // 2. Identify notes with highest instability (avg cents > 10)
+    final result = await db.rawQuery('''
+      SELECT note, AVG(ABS(cents)) as avg_cents, COUNT(*) as count
+      FROM musical_vault
+      WHERE session_id IN ($sessionIds) AND note != '--'
+      GROUP BY note
+      HAVING count > 20
+      ORDER BY avg_cents DESC
+      LIMIT 2
+    ''');
+    
+    if (result.isEmpty) return "Recent performance shows high pitch stability across all documented notes.";
+    
+    final summary = result.map((r) => 
+      "${r['note']} (avg deviation: ${(r['avg_cents'] as double).toStringAsFixed(1)} cents)"
+    ).join(" and ");
+    
+    return "NEURAL_RECALL: The user's recent sessions show persistent intonation drift on $summary. Prioritize stabilization exercises for these frequencies.";
+  }
 }

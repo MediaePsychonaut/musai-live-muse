@@ -94,13 +94,16 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
       
       final currentEngine = ref.read(engineProvider);
       final currentMentorData = ref.read(mentorProvider);
-      final summary = await ref.read(practiceLedgerProvider).getLastSessionSummary();
+      final ledger = ref.read(practiceLedgerProvider);
+      final summary = await ledger.getLastSessionSummary();
+      final neuralRecall = await ledger.getMusicalPerformanceSummary();
       
       String extendedInstruction = currentMentorData.systemInstruction;
       if (summary != null) {
         final avgCents = summary['avg_cents'] as double;
         extendedInstruction += "\n\n<CONTEXT_PROTOCOL>\n";
-        extendedInstruction += "USER PAST SESSION AVERAGE DEVIATION: ${avgCents.toStringAsFixed(2)} CENTS.\n";
+        extendedInstruction += "TECHNICAL_HISTORY: User past session average deviation: ${avgCents.toStringAsFixed(2)} cents.\n";
+        extendedInstruction += "$neuralRecall\n";
         extendedInstruction += avgCents > 15.0 
             ? "DIRECTIVE: THE USER EXHIBITED SIGNIFICANT PITCH DRIFT. PRIORITIZE TIGHT INTONATION FEEDBACK.\n"
             : "DIRECTIVE: THE USER WAS STABLE. FOCUS ON RHYTHMIC AND EXPRESSIVE TIMING.\n";
