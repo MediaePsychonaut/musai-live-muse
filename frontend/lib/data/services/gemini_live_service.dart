@@ -20,6 +20,12 @@ class GeminiLiveService {
   StreamSubscription? _subscription;
   bool _isDisposed = false;
   bool _isTurnActive = false; // Surgical Turn Flag
+  bool _isShieldedProcessing = false; // [PROTOCOL-SHIELD]
+  
+  // [TERMINUS-DATA] Orchestration
+  final List<Future<void> Function()> _commandQueue = [];
+  bool _isProcessingQueue = false;
+  Timer? _reconnectTimer;
   
   // High-Fidelity Telemetry Accessors
   double lastVolume = 0.0;
@@ -166,9 +172,11 @@ class GeminiLiveService {
               final bool turnComplete = serverContent['turn_complete'] ?? serverContent['turnComplete'] ?? false;
               if (turnComplete) {
                 debugPrint("MUSE_LOG: [EUTE] model_turn_complete detected. Resetting turn flag.");
-                _isTurnActive = false;
-                _dispatchPendingToolResponses(); // [PROTOCOL-GUARDIAN]
-                AudioOutputService().stopVocalStream(); // Close stream if no pulse/drone
+                if (!_isShieldedProcessing) {
+                  _isTurnActive = false;
+                  _dispatchPendingToolResponses(); // [PROTOCOL-GUARDIAN]
+                  AudioOutputService().stopVocalStream(); // Close stream if no pulse/drone
+                }
               }
             }
 
@@ -192,8 +200,17 @@ class GeminiLiveService {
           debugPrint(
             "MUSE_LOG: [EUTE] Session Purged. CLOSE_CODE: ${_channel?.closeCode}",
           );
+          final code = _channel?.closeCode;
           _channel = null;
-          if (!completer.isCompleted) {
+          
+          if (!_isDisposed && code == 1011) {
+            debugPrint("MUSE_LOG: [CRITICAL_RECOVERY] Protocol 1011 detected. Attempting staggered reconnect...");
+            LabLogService().log("PROTOCOL", "RECONNECT_ATTEMPT", metadata: "Triggered by code 1011");
+            _reconnectTimer?.cancel();
+            _reconnectTimer = Timer(const Duration(seconds: 2), () {
+              if (!_isDisposed) connect(onMessage: onMessage, onError: onError, onDone: onDone, onHardwareCommand: onHardwareCommand);
+            });
+          } else if (!completer.isCompleted) {
             completer.completeError("Connection closed before setup.");
           }
           onDone();
@@ -416,6 +433,7 @@ class GeminiLiveService {
   void disconnect() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _reconnectTimer?.cancel();
     debugPrint("MUSE_LOG: [EUTE] Terminating sync protocols...");
     _subscription?.cancel();
     _channel?.sink.close();
@@ -555,14 +573,12 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
-        // [STABILIZATION] Purge buffer with a 100ms drain delay to prevent audio shredding
+        // [TERMINUS-DATA] Immediate Audio Irrigation (Zero Bleed)
+        debugPrint("MUSE_LOG: [EUTE] model_turn detected. Irrigating vocal buffer (Zero Bleed).");
+        AudioOutputService().clearVocalBuffer();
+        
         if (!_isTurnActive) {
-          debugPrint("MUSE_LOG: [EUTE] model_turn detected. Draining remaining audio buffer...");
           _isTurnActive = true;
-          Future.delayed(const Duration(milliseconds: 100), () {
-             debugPrint("MUSE_LOG: [EUTE] Drain complete. Purging vocal buffer for fresh response.");
-             AudioOutputService().clearVocalBuffer();
-          });
         }
         
         final parts = modelTurn['parts'] as List?;
@@ -597,11 +613,20 @@ class GeminiLiveService {
       final id = functionCall['id'] ?? functionCall['call_id']; 
       final args = functionCall['args'] as Map<String, dynamic>? ?? {};
 
-      debugPrint("MUSE_LOG: [EUTE] Protocol Anchor: Executing $name(args: $args)");
-      LabLogService().log("TOOL_EXEC", name, metadata: args.toString());
-
-      // Notify UI (Sensory Sync)
-      onHardwareCommand?.call(name, args);
+      // [TERMINUS-DATA] Queue mapping
+      _commandQueue.add(() async {
+        debugPrint("MUSE_LOG: [EUTE] Sequential Orchestration: Executing $name");
+        LabLogService().log("TOOL_EXEC", name, metadata: args.toString());
+        
+        if (name != null) {
+          _isShieldedProcessing = true;
+          LabLogService().log("PROTOCOL", "SHIELD_ON", metadata: "Processing tool: $name");
+        }
+        
+        onHardwareCommand?.call(name, args);
+        // Sequential Pulse Gap
+        await Future.delayed(const Duration(milliseconds: 50));
+      });
       
       Map<String, dynamic> responsePayload = {
         "result": "success"
@@ -622,9 +647,14 @@ class GeminiLiveService {
       });
     }
 
+    _processCommandQueue();
+
     // [PROTOCOL-SANITY] Purge any null or empty objects before buffering
     final cleanParts = responseParts.where((part) => part.isNotEmpty).toList();
-    if (cleanParts.isEmpty) return;
+    if (cleanParts.isEmpty) {
+      _isShieldedProcessing = false;
+      return;
+    }
 
     _pendingToolResponses.addAll(cleanParts);
     debugPrint("MUSE_LOG: [EUTE] Tool responses buffered (${_pendingToolResponses.length} total). Waiting for server_turn_complete.");
@@ -650,10 +680,10 @@ class GeminiLiveService {
         };
         _channel!.sink.add(jsonEncode(resultsPayload));
         
-        // 2. Dispatch turn closure after staggered delay (100ms)
+        // 2. Dispatch turn closure after staggered delay (150ms)
         // This prevents the "empty turn" race condition in Gemini's Bidi protocol
-        // [PROTOCOL-STABILITY-ZENITH] Increased to 100ms for high-load stability
-        Future.delayed(const Duration(milliseconds: 100), () {
+        // [PROTOCOL-STABILITY-ULTIMATUM] Increased to 150ms for categorical stability
+        Future.delayed(const Duration(milliseconds: 150), () {
           if (_channel != null && !_isDisposed) {
             final closurePayload = {
               "client_content": {
@@ -661,8 +691,9 @@ class GeminiLiveService {
               }
             };
             _channel!.sink.add(jsonEncode(closurePayload));
-            debugPrint("MUSE_LOG: [EUTE] Protocol Anchor Hardened: Staggered closure dispatched.");
-            LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Batched closure with staggered delay");
+            _isShieldedProcessing = false; // Release shield
+            debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched.");
+            LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Ultimatum delay (150ms) | SHIELD_OFF");
           }
         });
 
@@ -671,6 +702,22 @@ class GeminiLiveService {
         debugPrint("MUSE_LOG: [EUTE] Sink Add Error (Buffered Response): $e");
       }
     }
+  }
+
+  Future<void> _processCommandQueue() async {
+    if (_isProcessingQueue || _commandQueue.isEmpty) return;
+    _isProcessingQueue = true;
+    
+    while (_commandQueue.isNotEmpty) {
+      final action = _commandQueue.removeAt(0);
+      try {
+        await action();
+      } catch (e) {
+        debugPrint("MUSE_LOG: [ORCHESTRATION_ERROR] $e");
+      }
+    }
+    
+    _isProcessingQueue = false;
   }
 
   double _calculateRMS(Uint8List pcm) {

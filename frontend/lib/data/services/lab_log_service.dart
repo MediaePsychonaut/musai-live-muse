@@ -12,17 +12,21 @@ class LabLogService {
 
   String? _resolvedPath;
 
-  Future<String> _getLogPath() async {
-    if (_resolvedPath != null) return _resolvedPath!;
+  Future<String?> _getLogPath() async {
+    if (_resolvedPath != null) return _resolvedPath;
 
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      final directory = await getApplicationDocumentsDirectory();
-      _resolvedPath = p.join(directory.path, 'LAB_LOG_SESSION.txt');
-    } else {
-      // Standard Lab Path for Windows/Desktop
-      _resolvedPath = r'c:\OPERATIVE_SYSTEM_DER_TAB\02_ACTIVE_PROJECTS\musai-live-muse\docs\LAB_LOG_SESSION.txt';
+    try {
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        final directory = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+        _resolvedPath = p.join(directory.path, 'LAB_LOG_SESSION.txt');
+      } else if (Platform.isWindows) {
+        // Standard Lab Path for Windows/Desktop
+        _resolvedPath = r'c:\OPERATIVE_SYSTEM_DER_TAB\02_ACTIVE_PROJECTS\musai-live-muse\docs\LAB_LOG_SESSION.txt';
+      }
+    } catch (e) {
+      debugPrint("MUSE_LOG: [LAB_ERROR] Path resolution failed: $e");
     }
-    return _resolvedPath!;
+    return _resolvedPath;
   }
 
   /// Appends a telemetry entry to the lab log.
@@ -30,19 +34,20 @@ class LabLogService {
     final timestamp = DateTime.now().toIso8601String();
     final logLine = '[$timestamp] [$type] $event ${metadata != null ? "| $metadata" : ""}\n';
     
-    // Always ECHO to terminal for capture
+    // Always ECHO to terminal for capture [UI-AUDIT-ZENITH]
     debugPrint("MUSE_LAB_ECHO: $logLine");
 
     try {
       final path = await _getLogPath();
-      final file = File(path);
+      if (path == null) return;
       
+      final file = File(path);
       if (!await file.parent.exists()) {
         await file.parent.create(recursive: true);
       }
       await file.writeAsString(logLine, mode: FileMode.append, flush: true);
     } catch (e) {
-      debugPrint("MUSE_LOG: [LAB_ERROR] Persistent log failure: $e");
+      // Internal silent failure, we still have the terminal echo
     }
   }
 }

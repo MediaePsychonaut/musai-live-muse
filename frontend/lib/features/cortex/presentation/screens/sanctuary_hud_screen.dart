@@ -123,19 +123,22 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                             final indicatorsAndIdentity = isLandscape
                                 ? Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                                    child: Row(
+                                    child: Stack(
                                       children: [
-                                        Expanded(
-                                          child: Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
-                                          ),
+                                        // Indicators Background Row
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
+                                            _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                          ],
                                         ),
-                                        _buildMentorIdentity(context, mentorState),
-                                        Expanded(
-                                          child: Align(
-                                            alignment: Alignment.centerRight,
-                                            child: _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                        // [TERMINUS-ZENITH] Top-Centered Mentor Identity
+                                        Align(
+                                          alignment: Alignment.topCenter,
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(top: 10),
+                                            child: _buildMentorIdentity(context, mentorState),
                                           ),
                                         ),
                                       ],
@@ -198,14 +201,14 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                   OrientationBuilder(
                                     builder: (context, orientation) {
                                       final bool isLandscape = orientation == Orientation.landscape;
-                                      final double scale = isLandscape ? 1.2 : 1.0;
+                                      final double tunerScale = isLandscape ? 1.35 : 1.0;
                                       
                                       return Transform.scale(
-                                        scale: scale,
+                                        scale: tunerScale,
                                         child: RepaintBoundary(
                                           child: Column(
                                             children: [
-                                              // Visual Deviation Gauge (Now handles the main label)
+                                              // Visual Deviation Gauge (Now handles the main label with Candy Opacity v2)
                                               _TunerGauge(
                                                 cents: liveStream.value?.centsDeviation ?? 0.0,
                                                 primaryColor: mentorState.primaryColor,
@@ -821,31 +824,32 @@ class _GaugePainter extends CustomPainter {
     if (noteName != "--") {
        final absCents = cents.abs();
        
-       // [CONTEXTUAL-LUMINANCE]
-       // 0.1 opacity when cents >= 15
-       // 1.0 opacity when cents < 15
-       final double opacity = absCents < 15 ? 1.0 : 0.1;
+       // [CONTEXTUAL-LUMINANCE-ZENITH]
+       // 0.4 opacity when cents >= 15
+       // 0.9 opacity when cents < 15
+       // 1.0 + primary color shadow when cents < 5
+       final double opacity = absCents < 15 ? 0.9 : 0.4;
        
-       // [LOCK-IN-GLOW] 
-       // Primary color + shadows only when < 5 cents
+       // [LOCK-IN-GLOW-ZENITH] 
        final bool isLocked = absCents < 5;
        final baseLabelColor = isLocked ? color : Colors.white;
+       final finalOpacity = isLocked ? 1.0 : opacity;
        
        final symbolStyle = TextStyle(
-         color: Colors.white.withValues(alpha: 0.2), 
-         fontSize: 18, // 50% of main label height roughly
-         fontWeight: FontWeight.w300,
+         color: Colors.white.withValues(alpha: 0.45), // Reduced fade for symbols v2
+         fontSize: 24, // Optimized for 36pt main label
+         fontWeight: FontWeight.w400,
          letterSpacing: 1
        );
        
        final mainNoteStyle = TextStyle(
-         color: baseLabelColor.withValues(alpha: opacity), 
-         fontSize: 32, // Main central label
+         color: baseLabelColor.withValues(alpha: finalOpacity), 
+         fontSize: 36, // Main central label zenith
          fontWeight: FontWeight.bold, 
          letterSpacing: 2,
          shadows: isLocked ? [
-           Shadow(color: color.withValues(alpha: 0.8), blurRadius: 10),
-           Shadow(color: color.withValues(alpha: 0.6), blurRadius: 20),
+           Shadow(color: color.withValues(alpha: 0.9), blurRadius: 30), // HARDENED GLOW [TERMINUS-UI]
+           Shadow(color: color.withValues(alpha: 0.7), blurRadius: 45),
          ] : null,
        );
        
