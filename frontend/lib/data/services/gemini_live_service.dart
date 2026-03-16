@@ -8,7 +8,6 @@ import '../../core/audio/audio_recorder.dart';
 import '../../core/net/channel_factory.dart';
 import '../providers/mentor_providers.dart';
 import '../providers/engine_provider.dart';
-import '../../core/audio/pulse_engine.dart';
 import '../../core/audio/audio_output_service.dart';
 
 class GeminiLiveService {
@@ -19,6 +18,7 @@ class GeminiLiveService {
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   bool _isDisposed = false;
+  bool _isTurnActive = false; // Surgical Turn Flag
 
   static const String _host = 'generativelanguage.googleapis.com';
 
@@ -379,6 +379,7 @@ class GeminiLiveService {
 
   void sendAudioFrame(Uint8List frame, {String? metadata}) {
     if (_channel == null) return;
+    _isTurnActive = false; // Reset turn flag on user activity
     try {
       // 1. Surgical Mono Downmix with explicit safety
       final processedFrame = _enforceMono(frame);
@@ -497,9 +498,12 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
-        // [STABILIZATION] Purge buffer ONLY on a fresh model turn start
-        debugPrint("MUSE_LOG: [EUTE] model_turn detected. Purging vocal buffer for fresh response.");
-        AudioOutputService().clearVocalBuffer();
+        // [STABILIZATION] Purge buffer ONLY once at the start of a model turn
+        if (!_isTurnActive) {
+          debugPrint("MUSE_LOG: [EUTE] model_turn detected. Purging vocal buffer for fresh response.");
+          AudioOutputService().clearVocalBuffer();
+          _isTurnActive = true;
+        }
         
         final parts = modelTurn['parts'] as List?;
         if (parts != null) {
@@ -530,8 +534,6 @@ class GeminiLiveService {
 
     debugPrint("MUSE_LOG: [EUTE] Function Call Triggered: $name(args: $args)");
 
-    final pulseEngine = PulseEngine();
-    
     // Notify UI (Sensory Sync)
     onHardwareCommand?.call(name, args);
     

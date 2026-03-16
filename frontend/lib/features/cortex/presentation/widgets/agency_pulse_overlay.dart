@@ -60,8 +60,8 @@ class _AgencyPulseOverlayState extends ConsumerState<AgencyPulseOverlay> with Si
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
-                    mentorState.primaryColor.withOpacity(_opacityAnimation.value),
-                    mentorState.primaryColor.withOpacity(0.0),
+                    mentorState.primaryColor.withValues(alpha: _opacityAnimation.value),
+                    mentorState.primaryColor.withValues(alpha: 0.0),
                   ],
                   radius: 1.5,
                 ),

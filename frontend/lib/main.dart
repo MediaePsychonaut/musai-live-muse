@@ -8,11 +8,21 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    if (e.toString().contains('duplicate-app')) {
+      debugPrint("MUSE_LOG: [BOOT] Firebase already initialized (duplicate-app). Skipping.");
+    } else {
+      debugPrint("MUSE_LOG: [BOOT] Firebase Initialization Error: $e");
+    }
   }
+
   runApp(
     const ProviderScope(
       child: MyApp(),

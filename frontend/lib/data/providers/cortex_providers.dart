@@ -139,12 +139,12 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
           hw.triggerAgencyPulse(); // GLOBAL PULSE ON AGENCY
           if (name == 'set_metronome') {
             final active = args['active'] ?? false;
-            hw.setMetronome(active);
             if (active) {
               hw.setBpm((args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60);
               final signature = (args['signature'] is int) ? args['signature'] as int : 4;
               hw.setSignature(signature); // Pass signature to native PulseEngine
             }
+            hw.setMetronome(active); // TRIGGER START AFTER PARAMETERS
           } else if (name == 'set_drone') {
             final active = args['active'] ?? false;
             hw.setDrone(active);
@@ -158,8 +158,10 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
             final focusArg = args['focus'] ?? "General Mastery";
             ref.read(sessionObjectiveProvider.notifier).state = "$nameArg: $focusArg";
             ref.read(isSessionActiveProvider.notifier).state = true;
+            ref.read(sessionTimerProvider.notifier).start(); // SYNC UI CLOCK
           } else if (name == 'stop_practice_session') {
             ref.read(isSessionActiveProvider.notifier).state = false;
+            ref.read(sessionTimerProvider.notifier).stop(); // SYNC UI CLOCK
           }
         },
       );
