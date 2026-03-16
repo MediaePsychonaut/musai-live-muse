@@ -68,16 +68,8 @@ class LiveStreamState {
 
 class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   GeminiLiveService? _service;
-  StreamSubscription? _audioSubscription;
-  PitchDetector? _pitchDetector;
-  StreamSubscription? _pitchSubscription;
-  StreamSubscription? _telemetrySubscription;
-  StreamSubscription? _pulseSubscription;
-  Timer? _stateThrottleTimer;
   final _audioOutput = AudioOutputService();
   bool _connecting = false;
-  
-  final PracticeLedger _practiceLedger = PracticeLedger();
 
   @override
   FutureOr<LiveStreamState> build() {
@@ -88,38 +80,26 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
     if (_connecting) return;
     _connecting = true;
 
-    state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.connecting));
+    final currentState = state.value ?? LiveStreamState(status: LiveStreamStatus.disconnected);
+    state = AsyncValue.data(currentState.copyWith(status: LiveStreamStatus.connecting));
 
     try {
       final recorder = createRecorder();
-      
-      final hasPermission = await recorder.hasPermission();
-      if (!hasPermission) {
-        _connecting = false;
-        state = AsyncValue.data(LiveStreamState(
-          status: LiveStreamStatus.error,
-          error: "PERMISSION_DENIED: Microphone access is required.",
-        ));
-        return;
-      }
-
       final apiKey = SecretManager().apiKey;
       await _audioOutput.init();
       
       final currentEngine = ref.read(engineProvider);
-      final summary = await _practiceLedger.getLastSessionSummary();
       final currentMentorData = ref.read(mentorProvider);
+      final summary = await ref.read(practiceLedgerProvider).getLastSessionSummary();
       
       String extendedInstruction = currentMentorData.systemInstruction;
       if (summary != null) {
         final avgCents = summary['avg_cents'] as double;
         extendedInstruction += "\n\n<CONTEXT_PROTOCOL>\n";
         extendedInstruction += "USER PAST SESSION AVERAGE DEVIATION: ${avgCents.toStringAsFixed(2)} CENTS.\n";
-        if (avgCents > 15.0) {
-           extendedInstruction += "DIRECTIVE: THE USER EXHIBITED SIGNIFICANT PITCH DRIFT IN THE LAST SESSION. PRIORITIZE TIGHT INTONATION FEEDBACK.\n";
-        } else {
-           extendedInstruction += "DIRECTIVE: THE USER WAS INTONATIONALLY STABLE IN THE LAST SESSION. FOCUS ON RHYTHMIC AND EXPRESSIVE TIMING.\n";
-        }
+        extendedInstruction += avgCents > 15.0 
+            ? "DIRECTIVE: THE USER EXHIBITED SIGNIFICANT PITCH DRIFT. PRIORITIZE TIGHT INTONATION FEEDBACK.\n"
+            : "DIRECTIVE: THE USER WAS STABLE. FOCUS ON RHYTHMIC AND EXPRESSIVE TIMING.\n";
         extendedInstruction += "</CONTEXT_PROTOCOL>";
       }
 
@@ -145,7 +125,7 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         },
         onError: (err) {
           _connecting = false;
-          state = AsyncValue.data(LiveStreamState(
+          state = AsyncValue.data(currentState.copyWith(
             status: LiveStreamStatus.error,
             error: "SYNC_FAIL: ${err.toString()}",
           ));
@@ -157,136 +137,160 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         onHardwareCommand: (name, args) {
           final hw = ref.read(hardwareProvider.notifier);
           if (name == 'set_metronome') {
-            final bool active = args['active'] ?? false;
+            final active = args['active'] ?? false;
             hw.setMetronome(active);
-            if (active) {
-              final bpm = (args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60;
-              hw.setBpm(bpm);
-            }
+            if (active) hw.setBpm((args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60);
           } else if (name == 'set_drone') {
-            final bool active = args['active'] ?? false;
+            final active = args['active'] ?? false;
             hw.setDrone(active);
-            if (active) {
-              final freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
-              hw.setKey("${freq.toStringAsFixed(0)}Hz");
-            }
+            if (active) hw.setKey("${((args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0).toStringAsFixed(0)}Hz");
           }
         },
       );
 
-      // Core Sensory Hub activation
-      await _activateSensoryLoop(recorder);
-
-      state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.connected));
+      state = AsyncValue.data(currentState.copyWith(status: LiveStreamStatus.connected));
       _connecting = false;
     } catch (e) {
       _connecting = false;
-      state = AsyncValue.data(LiveStreamState(
+      state = AsyncValue.data(currentState.copyWith(
         status: LiveStreamStatus.error,
         error: e.toString(),
       ));
     }
   }
 
-  Future<void> _activateSensoryLoop(CortexRecorder recorder) async {
-    if (_pitchDetector != null) return;
-
-    debugPrint("MUSE_LOG: [SENSORY] Activating Local Perception...");
-
-    PitchDetectorResult? latestPitchResult;
-    double latestAiResonance = 0.0;
-    double latestEuteAmplitude = 0.0;
-
-    _pitchDetector = PitchDetector();
-    await _pitchDetector!.init();
-    
-    _pitchSubscription = _pitchDetector!.results.listen((result) {
-      latestPitchResult = result;
-    });
-
-    _telemetrySubscription = _audioOutput.telemetryStream.listen((rms) {
-      latestAiResonance = rms;
-      latestEuteAmplitude = rms;
-    });
-
-    _pulseSubscription = _audioOutput.pulseStream.listen((tick) {
-      final currentState = state.value;
-      if (currentState != null) {
-        state = AsyncValue.data(currentState.copyWith(
-          pulseTick: currentState.pulseTick + 1,
-        ));
-      }
-    });
-
-    _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
-      final currentState = state.value;
-      if (currentState != null) {
-        final pitch = latestPitchResult?.pitch ?? currentState.pitch;
-        final cents = latestPitchResult?.centsDeviation ?? 0.0;
-        
-        final activeSessionId = ref.read(sessionManagerProvider);
-        if (activeSessionId != null && pitch > 0.0) {
-           _practiceLedger.logTelemetry(activeSessionId, pitch, cents);
-        }
-
-        state = AsyncValue.data(currentState.copyWith(
-          pitch: pitch,
-          volume: latestPitchResult?.volume ?? currentState.volume,
-          spectrum: latestPitchResult?.spectrum ?? currentState.spectrum,
-          violinResonance: latestPitchResult?.violinResonance ?? currentState.violinResonance,
-          aiResonance: latestAiResonance,
-          euteOutputAmplitude: latestEuteAmplitude,
-          centsDeviation: cents,
-        ));
-      }
-    });
-
-    await recorder.startStream(const CortexRecordConfig(
-      sampleRate: 16000,
-      numChannels: 1,
-    ));
-
-    int frameCounter = 0;
-    _audioSubscription = recorder.audioStream.listen((frame) {
-      frameCounter++;
-      
-      String? metadataPayload;
-      if (frameCounter >= 20) {
-        frameCounter = 0;
-        if (latestPitchResult != null && latestPitchResult!.volume > 0.05) {
-          metadataPayload = "f0: ${latestPitchResult!.pitch.toStringAsFixed(1)}Hz | cents: ${latestPitchResult!.centsDeviation.toStringAsFixed(1)}";
-        }
-      }
-
-      _service?.sendAudioFrame(frame, metadata: metadataPayload);
-      _pitchDetector?.processFrame(frame, 16000);
-    });
-  }
-
   void disconnect() {
-    _audioSubscription?.cancel();
-    _audioSubscription = null;
-    _pitchSubscription?.cancel();
-    _pitchSubscription = null;
-    _telemetrySubscription?.cancel();
-    _telemetrySubscription = null;
-    _pulseSubscription?.cancel();
-    _pulseSubscription = null;
-    _stateThrottleTimer?.cancel();
-    _stateThrottleTimer = null;
-    _pitchDetector?.dispose();
-    _pitchDetector = null;
-    
-    _service?.recorder.stop();
-    _service?.recorder.dispose();
     _service?.disconnect();
     _service = null;
     _audioOutput.dispose();
-    
     _connecting = false;
-    state = AsyncValue.data(LiveStreamState(status: LiveStreamStatus.disconnected));
+    
+    final currentState = state.value;
+    if (currentState != null) {
+      state = AsyncValue.data(currentState.copyWith(status: LiveStreamStatus.disconnected));
+    }
+  }
+  
+  void updateState(LiveStreamState newState) {
+    state = AsyncValue.data(newState);
   }
 }
+
+class SensoryNotifier extends Notifier<void> {
+  StreamSubscription? _audioSubscription;
+  StreamSubscription? _telemetrySubscription;
+  StreamSubscription? _pulseSubscription;
+  PitchDetector? _pitchDetector;
+  Timer? _stateThrottleTimer;
+  final _practiceLedger = PracticeLedger();
+  
+  @override
+  void build() {
+    // Listen to both Session state and LiveStream status
+    ref.listen<bool>(isSessionActiveProvider, (prev, isActive) => _syncSensoryState());
+    ref.listen<AsyncValue<LiveStreamState>>(liveStreamStateProvider, (prev, status) => _syncSensoryState());
+    ref.listen<bool>(tunerEnabledProvider, (prev, isTuner) => _syncSensoryState());
+    
+    // Initial sync
+    _syncSensoryState();
+  }
+
+  void _syncSensoryState() {
+    final isSessionActive = ref.read(isSessionActiveProvider);
+    final isAiConnected = ref.read(liveStreamStateProvider).value?.status == LiveStreamStatus.connected;
+    final isTunerEnabled = ref.read(tunerEnabledProvider);
+    
+    if (isSessionActive || isAiConnected || isTunerEnabled) {
+      _startSensoryLoop();
+    } else {
+      _stopSensoryLoop();
+    }
+  }
+
+  Future<void> _startSensoryLoop() async {
+    if (_pitchDetector != null) return;
+    
+    debugPrint("MUSE_LOG: [SENSORY] Activating Local Perception...");
+    _pitchDetector = PitchDetector();
+    
+    final recorder = createRecorder();
+    final hasPermission = await recorder.hasPermission();
+    if (!hasPermission) {
+      debugPrint("MUSE_LOG: [SENSORY] Permission Denied.");
+      _pitchDetector = null;
+      return;
+    }
+
+    await _pitchDetector!.init();
+    await recorder.startStream(const CortexRecordConfig(sampleRate: 16000));
+    
+    double latestVolume = 0.0;
+    double latestPitch = 0.0;
+    double latestCents = 0.0;
+    List<double> latestSpectrum = [];
+    double latestAiResonance = 0.0;
+
+    _audioSubscription = recorder.audioStream.listen((frame) {
+      _pitchDetector?.processFrame(frame, 16000);
+      final ls = ref.read(liveStreamStateProvider.notifier);
+      final service = ls._service;
+      if (service != null && service.isConnected) {
+         service.sendAudioFrame(frame);
+      }
+    });
+
+    _pitchDetector!.results.listen((res) {
+      latestVolume = res.volume;
+      latestPitch = res.pitch;
+      latestCents = res.centsDeviation;
+      latestSpectrum = res.spectrum;
+    });
+
+    _telemetrySubscription = AudioOutputService().telemetryStream.listen((rms) {
+      latestAiResonance = rms;
+    });
+
+    _pulseSubscription = AudioOutputService().pulseStream.listen((tick) {
+       final notifier = ref.read(liveStreamStateProvider.notifier);
+       final currentState = ref.read(liveStreamStateProvider).value;
+       if (currentState != null) {
+         notifier.updateState(currentState.copyWith(pulseTick: currentState.pulseTick + 1));
+       }
+    });
+
+    _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
+      final notifier = ref.read(liveStreamStateProvider.notifier);
+      final currentState = ref.read(liveStreamStateProvider).value;
+      if (currentState != null) {
+        final activeSessionId = ref.read(sessionManagerProvider);
+        if (activeSessionId != null && latestPitch > 0.0) {
+           _practiceLedger.logTelemetry(activeSessionId, latestPitch, latestCents);
+        }
+
+        notifier.updateState(currentState.copyWith(
+          pitch: latestPitch,
+          volume: latestVolume,
+          spectrum: latestSpectrum,
+          aiResonance: latestAiResonance,
+          euteOutputAmplitude: latestAiResonance,
+          centsDeviation: latestCents,
+        ));
+      }
+    });
+  }
+
+  void _stopSensoryLoop() {
+    _audioSubscription?.cancel();
+    _telemetrySubscription?.cancel();
+    _pulseSubscription?.cancel();
+    _stateThrottleTimer?.cancel();
+    _pitchDetector?.dispose();
+    _pitchDetector = null;
+    debugPrint("MUSE_LOG: [SENSORY] Local Perception Offline.");
+  }
+}
+
+final sensoryProvider = NotifierProvider<SensoryNotifier, void>(() => SensoryNotifier());
 
 final liveStreamStateProvider = AsyncNotifierProvider<LiveStreamNotifier, LiveStreamState>(() {
   return LiveStreamNotifier();
@@ -362,17 +366,33 @@ class SessionManagerNotifier extends StateNotifier<int?> {
   final Ref ref;
 
   SessionManagerNotifier(this._ledger, this.ref) : super(null) {
+    // 1. Listen to Session Toggle
     ref.listen<bool>(isSessionActiveProvider, (prev, isActive) async {
       if (isActive && state == null) {
         final objective = ref.read(sessionObjectiveProvider) ?? "ACTIVE FLOW";
         final engine = ref.read(engineProvider).toString().split('.').last;
         state = await _ledger.startSession(engineVersion: engine, objective: objective);
       } else if (!isActive && state != null) {
-        await _ledger.endSession(state!);
-        state = null;
-        ref.read(practiceUpdateTriggerProvider.notifier).state++;
+        await _closeCurrentSession();
       }
     });
+
+    // 2. [LIFECYCLE_INTEGRITY] Auto-closure on Mentor Switch
+    ref.listen(mentorProvider, (prev, next) async {
+      if (state != null) {
+        debugPrint("MUSE_LOG: [LIFECYCLE] Mentor identity shift detected. Closing current session.");
+        await _closeCurrentSession();
+      }
+    });
+  }
+
+  Future<void> _closeCurrentSession() async {
+    if (state != null) {
+      await _ledger.endSession(state!);
+      state = null;
+      ref.read(practiceUpdateTriggerProvider.notifier).state++;
+      ref.read(isSessionActiveProvider.notifier).state = false;
+    }
   }
 }
 

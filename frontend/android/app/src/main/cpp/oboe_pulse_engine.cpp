@@ -40,6 +40,12 @@ public:
         return false;
     }
 
+    void clear() {
+        head = 0;
+        tail = 0;
+        size.store(0);
+    }
+
     size_t available() const {
         return size.load();
     }
@@ -54,21 +60,27 @@ private:
 class PulseEngine : public AudioStreamCallback {
 private:
     std::shared_ptr<AudioStream> stream;
+    std::recursive_mutex mLock;
     double mPhase = 0.0;
     double mPhaseIncrement = 0.0;
     double mOscillatorPhase = 0.0;
     double mBpm = 60.0;
-    bool mIsPlaying = false;
+    std::atomic<bool> mIsPlaying{false};
     int mSampleRate = 48000;
 
     // Drone
     double mDroneFreq = 0.0;
     double mDronePhase = 0.0;
     double mDronePhaseIncrement = 0.0;
-    bool mDronePlaying = false;
+    std::atomic<bool> mDronePlaying{false};
+    
+    // Anti-Click Gain Ramping
+    std::atomic<float> mDroneGain{0.0f};
+    std::atomic<float> mTargetDroneGain{0.0f};
+    const float kGainStep = 0.001f; // ~50ms ramp at 24kHz
 
-    // Vocal Ring Buffer (4 seconds @ 24kHz = 96000 samples)
-    RingBuffer mVocalBuffer{96000};
+    // Vocal Ring Buffer (8 seconds @ 24kHz = 192000 samples)
+    RingBuffer mVocalBuffer{192000};
 
     void updatePhaseIncrement() {
         // We want a pulse every 60/BPM seconds.
@@ -78,27 +90,21 @@ private:
     }
 
 public:
-    void updateBpm(double bpm) {
-        mBpm = bpm;
-        updatePhaseIncrement();
-        LOGI("Pulse Engine BPM Updated: %f", mBpm);
-    }
-
-    void updateDroneFreq(double freq) {
-        mDroneFreq = freq;
-        if (stream) {
-            mDronePhaseIncrement = mDroneFreq / (double)stream->getSampleRate();
-        }
-        LOGI("Drone Engine FREQ Updated: %f", mDroneFreq);
-    }
-
     PulseEngine() {}
 
     bool start(double bpm) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
         mBpm = bpm;
         mPhase = 0.0;
         mOscillatorPhase = 0.0;
         mIsPlaying = true;
+        mVocalBuffer.clear();
+
+        if (stream) {
+            updatePhaseIncrement();
+            LOGI("Pulse Engine Resumed: BPM %f", mBpm);
+            return true;
+        }
 
         AudioStreamBuilder builder;
         builder.setFormat(AudioFormat::Float)
@@ -128,50 +134,56 @@ public:
     }
 
     void stop() {
-        if (stream) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        mIsPlaying = false;
+        mVocalBuffer.clear();
+        if (!mDronePlaying && stream) {
             stream->requestStop();
             stream->close();
             stream.reset();
+            LOGI("Pulse Engine Stream Closed.");
+        } else {
+             LOGI("Pulse Engine Ticks Disabled.");
         }
-        mIsPlaying = false;
-        mDronePlaying = false;
-        LOGI("Pulse Engine Stopped.");
     }
 
     void startDrone(double freq) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
         mDroneFreq = freq;
         mDronePhase = 0.0;
         
-        // Ensure stream is running
         if (!stream) {
-            start(mBpm); // Opens stream
-            mIsPlaying = false; // Turn off tick
+            start(mBpm);
+            mIsPlaying = false; 
         } else {
              mSampleRate = stream->getSampleRate();
         }
         
         mDronePhaseIncrement = mDroneFreq / (double)mSampleRate;
+        mTargetDroneGain = 0.4f; // Standard gain
         mDronePlaying = true;
         LOGI("Drone Engine Started: FREQ %f", mDroneFreq);
     }
 
     void stopDrone() {
-        mDronePlaying = false;
-        LOGI("Drone Engine Stopped.");
-        if (!mIsPlaying && stream) {
-            stop(); // If nothing is playing, close stream
-        }
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        mTargetDroneGain = 0.0f;
+        // mDronePlaying will be set to false by the audio thread once gain reaches 0
+        LOGI("Drone Engine Stopping (Ramping Down)...");
     }
 
     double writeVocalData(const int16_t* data, int32_t numSamples) {
         if (numSamples <= 0) return 0.0;
-        // Calculate RMS in C++ for performance
-        double sumSq = 0.0;
+        // Optimization: Accumulate as int64_t to avoid per-sample conversion and division
+        int64_t sumSq = 0;
         for (int i = 0; i < numSamples; ++i) {
-            double sample = data[i] / 32768.0;
-            sumSq += sample * sample;
+            int32_t s = data[i];
+            sumSq += (int64_t)s * s;
         }
-        double rms = sqrt(sumSq / numSamples);
+        // Normalize only once after accumulation
+        // (sumSq / numSamples) / (32768.0 * 32768.0)
+        double meanSq = (double)sumSq / (double)numSamples;
+        double rms = sqrt(meanSq) / 32768.0;
 
         mVocalBuffer.write(data, numSamples);
         return rms;
@@ -199,7 +211,7 @@ public:
         for (int i = 0; i < numFrames; ++i) {
             float sampleValue = 0.0f;
 
-            if (mIsPlaying) {
+            if (mIsPlaying.load()) {
                 mPhase += mPhaseIncrement;
                 
                 // Render a tick
@@ -213,18 +225,32 @@ public:
                     mOscillatorPhase -= 0.01; // Faster decay for punch
                     if (mOscillatorPhase < 0.0) mOscillatorPhase = 0.0;
 
-                    sampleValue += sin(mOscillatorPhase * M_PI * 523.25 * 2.0) * mOscillatorPhase * 0.8f;
+                    sampleValue += sin(mOscillatorPhase * M_PI * 523.25 * 2.0) * (float)mOscillatorPhase * 0.8f;
                 }
             }
 
-            if (mDronePlaying) {
-                mDronePhase += mDronePhaseIncrement;
-                if (mDronePhase >= 1.0) {
-                    mDronePhase -= 1.0;
+            if (mDronePlaying.load()) {
+                // Smooth Gain Ramping
+                float currentGain = mDroneGain.load();
+                float targetGain = mTargetDroneGain.load();
+                if (currentGain < targetGain) {
+                    currentGain += kGainStep;
+                    if (currentGain > targetGain) currentGain = targetGain;
+                } else if (currentGain > targetGain) {
+                    currentGain -= kGainStep;
+                    if (currentGain < targetGain) currentGain = targetGain;
                 }
-                
-                // Pure sine drone - INCREASE GAIN to 0.4
-                sampleValue += sin(mDronePhase * M_PI * 2.0) * 0.4f; 
+                mDroneGain.store(currentGain);
+
+                if (currentGain > 0.0f) {
+                    mDronePhase += mDronePhaseIncrement;
+                    if (mDronePhase >= 1.0) {
+                        mDronePhase -= 1.0;
+                    }
+                    sampleValue += sin(mDronePhase * M_PI * 2.0) * currentGain;
+                } else if (targetGain == 0.0f) {
+                    mDronePlaying.store(false);
+                }
             }
 
             // Mix AI Vocal from Ring Buffer
@@ -253,7 +279,7 @@ Java_com_example_frontend_MainActivity_startPulseEngine(JNIEnv* env, jobject /* 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_frontend_MainActivity_updatePulseEngineBpm(JNIEnv* env, jobject /* this */, jdouble bpm) {
+Java_com_example_frontend_MainActivity_updateBpm(JNIEnv* env, jobject /* this */, jdouble bpm) {
     engine.updateBpm(bpm);
 }
 
@@ -268,7 +294,7 @@ Java_com_example_frontend_MainActivity_startDroneEngine(JNIEnv* env, jobject /* 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_frontend_MainActivity_updateDroneEngineFreq(JNIEnv* env, jobject /* this */, jdouble freq) {
+Java_com_example_frontend_MainActivity_updateDroneFreq(JNIEnv* env, jobject /* this */, jdouble freq) {
     engine.updateDroneFreq(freq);
 }
 
@@ -288,14 +314,4 @@ Java_com_example_frontend_MainActivity_writeVocalData(JNIEnv* env, jobject /* th
     
     env->ReleaseByteArrayElements(data, bufferPtr, JNI_ABORT);
     return rms;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_example_frontend_MainActivity_updateBpm(JNIEnv* env, jobject /* this */, jdouble bpm) {
-    engine.updateBpm(bpm);
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_example_frontend_MainActivity_updateDroneFreq(JNIEnv* env, jobject /* this */, jdouble freq) {
-    engine.updateDroneFreq(freq);
 }

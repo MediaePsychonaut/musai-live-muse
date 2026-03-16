@@ -42,24 +42,29 @@ class _SoulStateVisualizerState extends ConsumerState<SoulStateVisualizer>
     final aiResonance = liveStream.value?.aiResonance ?? 0.0;
     final euteAmplitude = liveStream.value?.euteOutputAmplitude ?? 0.0;
     final status = liveStream.value?.status ?? LiveStreamStatus.disconnected;
-    final isLive = status == LiveStreamStatus.connected;
+    final isTunerActive = ref.watch(tunerEnabledProvider);
+    final isLive = status == LiveStreamStatus.connected || isTunerActive;
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: const Size(400, 200),
-          painter: _WavePainter(
-            progress: _controller.value,
-            volume: volume,
-            spectrum: spectrum,
-            resonance: resonance,
-            aiResonance: aiResonance,
-            euteOutputAmplitude: euteAmplitude,
-            mentorColor: mentorState.primaryColor,
-            resonanceColor: MusaiTheme.deepSpaceTeal,
-            isLive: isLive,
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return CustomPaint(
+              size: Size(constraints.maxWidth, 200),
+              painter: _WavePainter(
+                progress: _controller.value,
+                volume: volume,
+                spectrum: spectrum,
+                resonance: resonance,
+                aiResonance: aiResonance,
+                euteOutputAmplitude: euteAmplitude,
+                mentorColor: mentorState.primaryColor,
+                resonanceColor: MusaiTheme.deepSpaceTeal,
+                isLive: isLive,
+              ),
+            );
+          },
         );
       },
     );
@@ -101,8 +106,6 @@ class _WavePainter extends CustomPainter {
 
     // 1. DEEP SPACE RESONANCE (BLOOM ANCHOR)
     if (isLive) {
-      // The Bloom responds to Musician Resonance, AI Resonance, and EUTE Output Amplitude
-      // [V0.5] Cadence Mapping: Apply a technical pulse factor to EUTE's output
       final technicalPulse = euteOutputAmplitude * 1.5;
       final effectiveResonance = math.max(resonance, math.max(aiResonance, technicalPulse));
       
@@ -140,13 +143,11 @@ class _WavePainter extends CustomPainter {
     for (double x = 0; x <= size.width; x++) {
       final normalizedX = x / size.width;
       
-      // PHYSICS LOCK: High-Fidelity Vibration Engine
       final baseAmplitude = isLive ? 15.0 : 4.0;
       final surge = volume * 55.0;
       final resonanceMod = resonance * 35.0;
-      final euteMod = euteOutputAmplitude * 45.0; // Cadence mapping for gapless stream
+      final euteMod = euteOutputAmplitude * 45.0; 
       
-      // Complex modulation from spectrum
       double fftModulation = 0.0;
       if (isLive && spectrum.isNotEmpty) {
         final fftIndex = (normalizedX * 10).toInt() % spectrum.length;
@@ -171,14 +172,12 @@ class _WavePainter extends CustomPainter {
     }
 
     if (isLive) {
-      // RESONANCE GLOW: Intensifies with volume + resonance + AI amplitude
       canvas.drawPath(
         path,
         paint..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + (volume * 10) + (resonance * 8) + (euteOutputAmplitude * 15)),
       );
     }
     
-    // CORE TECHNICAL LINE
     canvas.drawPath(
       path,
       paint..maskFilter = null..color = mentorColor,

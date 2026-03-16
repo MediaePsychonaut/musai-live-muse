@@ -25,6 +25,7 @@ class AudioOutputService {
     try {
       await _channel.invokeMethod('init', {'sampleRate': 24000});
       _telemetryChannel.setMessageHandler((message) async {
+        if (_telemetryController.isClosed) return null;
         if (message is double) {
           _telemetryController.add(message);
         } else if (message is int) {
@@ -33,6 +34,7 @@ class AudioOutputService {
         return null;
       });
       _pulseChannel.setMessageHandler((message) async {
+        if (_pulseController.isClosed) return null;
         if (message is int) {
           _pulseController.add(message);
         }
@@ -63,8 +65,10 @@ class AudioOutputService {
 
   void dispose() {
     _channel.invokeMethod('dispose');
+    _telemetryChannel.setMessageHandler(null);
+    _pulseChannel.setMessageHandler(null);
     _initialized = false;
-    _telemetryController.close();
-    _pulseController.close();
+    if (!_telemetryController.isClosed) _telemetryController.close();
+    if (!_pulseController.isClosed) _pulseController.close();
   }
 }

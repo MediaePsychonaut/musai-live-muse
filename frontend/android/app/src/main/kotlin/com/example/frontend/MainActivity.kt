@@ -27,11 +27,9 @@ class MainActivity : FlutterActivity() {
     }
 
     external fun startPulseEngine(bpm: Double)
-    external fun updatePulseEngineBpm(bpm: Double)
     external fun stopPulseEngine()
     
     external fun startDroneEngine(freq: Double)
-    external fun updateDroneEngineFreq(freq: Double)
     external fun stopDroneEngine()
 
     external fun updateBpm(bpm: Double)
@@ -85,11 +83,6 @@ class MainActivity : FlutterActivity() {
                 }
                 "updateBpm" -> {
                     val bpm = call.argument<Double>("bpm") ?: 60.0
-                    updatePulseEngineBpm(bpm)
-                    result.success(null)
-                }
-                "updateBpm" -> {
-                    val bpm = call.argument<Double>("bpm") ?: 60.0
                     updateBpm(bpm)
                     result.success(null)
                 }
@@ -100,11 +93,6 @@ class MainActivity : FlutterActivity() {
                 "startDrone" -> {
                     val freq = call.argument<Double>("freq") ?: 440.0
                     startDroneEngine(freq)
-                    result.success(null)
-                }
-                "updateDroneFreq" -> {
-                    val freq = call.argument<Double>("freq") ?: 440.0
-                    updateDroneEngineFreq(freq)
                     result.success(null)
                 }
                 "updateDroneFreq" -> {
