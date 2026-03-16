@@ -120,26 +120,51 @@ class PitchDetector {
 
     double pitch = 0.0;
     if (bestLag > 0 && maxCorr > 0.1) {
-      pitch = sampleRate / bestLag;
+      // [PITCH-SOVEREIGNTY] Parabolic Interpolation for sub-bin precision
+      double bestCorr = maxCorr;
+      double leftCorr = 0;
+      double rightCorr = 0;
+      
+      if (bestLag > minLag && bestLag < maxLag - 1) {
+        // Calculate neighbors
+        _calculateLagCorr(samples, bestLag - 1, (c) => leftCorr = c);
+        _calculateLagCorr(samples, bestLag + 1, (c) => rightCorr = c);
+        
+        // Parabolic peak formula: p = (left - right) / (2 * (left - 2*best + right))
+        double denominator = 2 * (leftCorr - 2 * bestCorr + rightCorr);
+        double delta = (denominator != 0) ? (leftCorr - rightCorr) / denominator : 0.0;
+        pitch = sampleRate / (bestLag + delta);
+      } else {
+        pitch = sampleRate / bestLag;
+      }
     }
 
     // [SOVEREIGN-FFT] SPECTRAL ANALYSIS
-    // Process frame directly from Float32List to avoid copying
     final magnitudeSpectrum = fft.processFrame(samples);
     
     // [SOVEREIGN-FFT] RESONANCE EXTRACTION
     final resonance = fft.getViolinResonance(magnitudeSpectrum);
     
-    // [PITCH DEVIATION CALCULATION]
-    // A4 = 440Hz. Formula: cents = 1200 * log2(pitch / 440)
+    // [NOTE-INTELLIGENCE] Find nearest note and relative deviation
     double centsDeviation = 0.0;
     if (pitch > 0) {
-      centsDeviation = 1200 * (math.log(pitch / 440.0) / math.ln2);
+      // MIDI formula: n = 12 * log2(f/440) + 69
+      double midiValue = 12 * (math.log(pitch / 440.0) / math.ln2) + 69.0;
+      int nearestMidi = midiValue.round();
+      centsDeviation = (midiValue - nearestMidi) * 100.0;
     }
 
-    // DIRECT DELIVERY: Float64List implements List<double>. 
-    // Sending over the port will perform the necessary copy for the UI isolate.
     return PitchDetectorResult(pitch, centsDeviation, volume, magnitudeSpectrum, resonance);
+  }
+
+  static void _calculateLagCorr(Float32List samples, int lag, Function(double) onResult) {
+    double corr = 0;
+    int count = 0;
+    for (int i = 0; i < samples.length - lag; i++) {
+      corr += samples[i] * samples[i + lag];
+      count++;
+    }
+    onResult(count > 0 ? corr / count : 0.0);
   }
 
   /// [SPECTRAL-EAR] Frequency Purification

@@ -12,6 +12,7 @@ class MusaiTheme {
   static const Color neonCyan = Color(0xFF00FFD1);
   static const Color cosmicLatte = Color(0xFFFFF8E7);
   static const Color metallicGold = Color(0xFFD4AF37);
+  static const Color vitalRed = Color(0xFFFF3B30); // Technical Red for alerts/stops
 
   static ThemeData getTheme(MentorState mentor) {
     final Color primary = mentor.primaryColor;

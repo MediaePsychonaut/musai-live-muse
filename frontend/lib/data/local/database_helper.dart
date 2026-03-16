@@ -18,7 +18,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'practice_ledger.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL');
       },
@@ -29,6 +29,7 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     // Pre-production constraint: Drop and recreate on schema updates
+    await db.execute('DROP TABLE IF EXISTS musical_vault');
     await db.execute('DROP TABLE IF EXISTS telemetry');
     await db.execute('DROP TABLE IF EXISTS sessions');
     await _onCreate(db, newVersion);
@@ -53,6 +54,19 @@ class DatabaseHelper {
         timestamp TEXT NOT NULL,
         f0_hz REAL,
         cents_deviation REAL,
+        FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE musical_vault (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        note TEXT,
+        frequency REAL,
+        cents REAL,
+        volume REAL,
         FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
       )
     ''');

@@ -163,6 +163,19 @@ class PracticeLedger {
     await db.insert('telemetry', telemetry.toMap());
   }
 
+  // [MUSICAL-VAULT] Log a high-fidelity musical event
+  Future<void> logMusicalSequence(int sessionId, String note, double frequency, double cents, double volume) async {
+    final db = await _dbHelper.database;
+    await db.insert('musical_vault', {
+      'session_id': sessionId,
+      'timestamp': DateTime.now().toIso8601String(),
+      'note': note,
+      'frequency': frequency,
+      'cents': cents,
+      'volume': volume,
+    });
+  }
+
   // Calculate moving averages or weak points for the previous session (Priming constraint)
   Future<Map<String, dynamic>?> getLastSessionSummary() async {
     final db = await _dbHelper.database;

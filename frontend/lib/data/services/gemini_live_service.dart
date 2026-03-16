@@ -19,6 +19,16 @@ class GeminiLiveService {
   StreamSubscription? _subscription;
   bool _isDisposed = false;
   bool _isTurnActive = false; // Surgical Turn Flag
+  
+  // High-Fidelity Telemetry Accessors
+  double lastVolume = 0.0;
+  double lastPitch = 0.0;
+  List<double> lastSpectrum = const [];
+  double lastResonance = 0.0;
+  double lastAiResonance = 0.0;
+  double lastEuteAmplitude = 0.0;
+  int lastPulseTick = 0;
+  double lastCentsDeviation = 0.0;
 
   static const String _host = 'generativelanguage.googleapis.com';
 
@@ -112,6 +122,10 @@ class GeminiLiveService {
             // [AUDITORY-DECODING] Extract and decode 24kHz PCM chunks
             final serverContent = decoded['server_content'] ?? decoded['serverContent'];
             if (serverContent != null) {
+              // Parse Telemetry if present (System Bridge)
+              lastResonance = serverContent['resonance'] ?? lastResonance;
+              lastEuteAmplitude = serverContent['eute_amplitude'] ?? lastEuteAmplitude;
+
               final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
               if (modelTurn != null) {
                 final parts = modelTurn['parts'] as List?;
@@ -457,10 +471,10 @@ class GeminiLiveService {
           },
         };
       } else {
-        // [METADATA-INJECTION] CamelCase format
+        // [METADATA-INJECTION] Consistent snake_case
         if (metadata != null) {
           final metadataMsg = {
-            "clientContent": {
+            "client_content": {
               "turns": [
                 {
                   "role": "user",
@@ -471,7 +485,7 @@ class GeminiLiveService {
                   ]
                 }
               ],
-              "turnComplete": false
+              "turn_complete": false
             }
           };
           if (!_isDisposed) {
@@ -480,10 +494,10 @@ class GeminiLiveService {
         }
 
         message = {
-          "realtimeInput": {
-            "mediaChunks": [
+          "realtime_input": {
+            "media_chunks": [
               {
-                "mimeType": "audio/pcm;rate=16000",
+                "mime_type": "audio/pcm;rate=16000",
                 "data": base64Encode(processedFrame),
               },
             ],
@@ -586,48 +600,27 @@ class GeminiLiveService {
       responsePayload = {"result": "error", "message": "Unknown function"};
     }
 
-    final bool isExp = engineType == EngineType.flash20Exp;
     final Map<String, dynamic> functionResponseMsg;
     
-    final responsePart = isExp ? {
+    final responsePart = {
       "function_response": {
-        "name": name,
-        if (id != null) "id": id,
-        "response": responsePayload
-      }
-    } : {
-      "functionResponse": {
         "name": name,
         if (id != null) "id": id,
         "response": responsePayload
       }
     };
 
-    if (isExp) {
-      functionResponseMsg = {
-        "client_content": {
-          "turns": [
-            {
-              "role": "user",
-              "parts": [responsePart]
-            }
-          ],
-          "turn_complete": true
-        }
-      };
-    } else {
-      functionResponseMsg = {
-        "clientContent": {
-          "turns": [
-            {
-              "role": "user",
-              "parts": [responsePart]
-            }
-          ],
-          "turnComplete": true
-        }
-      };
-    }
+    functionResponseMsg = {
+      "client_content": {
+        "turns": [
+          {
+            "role": "user",
+            "parts": [responsePart]
+          }
+        ],
+        "turn_complete": true
+      }
+    };
     
     if (_channel != null && !_isDisposed) {
       try {

@@ -8,6 +8,8 @@
 #define LOG_TAG "OboePulseEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#include <chrono>
+#include <thread>
 
 using namespace oboe;
 
@@ -67,6 +69,8 @@ private:
     double mBpm = 60.0;
     std::atomic<bool> mIsPlaying{false};
     std::atomic<bool> mVocalActive{false}; // NEW: Track vocal stream dependency
+    std::atomic<float> mVocalGain{1.2f};
+    const float kVocalFadeStep = 0.005f; 
     int mSampleRate = 48000;
 
     // Drone
@@ -141,10 +145,18 @@ public:
         return true;
     }
 
+    void ensureStreamOpen() {
+        if (!stream) {
+            LOGI("Vocal Stream detected: Auto-starting Audio Engine...");
+            start(mBpm); 
+            mIsPlaying = false; // Ensure ticks don't start
+        }
+    }
+
     void stop() {
         std::lock_guard<std::recursive_mutex> lock(mLock);
         mIsPlaying = false;
-        mVocalBuffer.clear();
+        // [SOVEREIGNTY] Removed vocalBuffer.clear() to prevent AI muting during tool changes
         if (!mDronePlaying && !mVocalActive && stream) {
             stream->requestStop();
             stream->close();
@@ -188,7 +200,19 @@ public:
         // mDronePlaying will be set to false by the audio thread once gain reaches 0
         LOGI("Drone Engine Stopping (Ramping Down)...");
     }
-    double writeVocalData(const int16_t* data, size_t numSamples) {
+    double writeVocalData(const int16_t* data, int32_t numSamples) {
+        if (numSamples <= 0) return 0.0;
+        
+        ensureStreamOpen(); // [DIAG-62] Ensure engine is alive for AI voice
+
+        // [DIAG-65] Pacing Check: Prevent buffer overflow leading to speed-up
+        size_t available = mVocalBuffer.available();
+        if (available > 48000) { // > 2 seconds buffered
+            LOGI("Temporal Pressure detected (Buffered: %zu). Applying pacing delay.", available);
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        
+        // Accumulate as int64_t to avoid per-sample conversion and division
         std::lock_guard<std::recursive_mutex> lock(mLock);
         double sum = 0;
         for (size_t i = 0; i < numSamples; ++i) {
@@ -292,7 +316,7 @@ public:
                 }
             }
 
-            // Mix AI Vocal from Ring Buffer
+            // [SOVEREIGN-SYNC] Mix AI Vocal from Ring Buffer with Underflow Padding
             if (mClearVocalBuffer.load()) {
                 mVocalBuffer.clear();
                 mClearVocalBuffer.store(false);
@@ -300,8 +324,27 @@ public:
             
             int16_t vocalSampleRaw;
             if (mVocalBuffer.read(vocalSampleRaw)) {
+                // Ramp up or keep at 1.2f
+                float currentGain = mVocalGain.load();
+                if (currentGain < 1.2f) {
+                    currentGain += kVocalFadeStep;
+                    mVocalGain.store(currentGain);
+                }
+                
                 float vocalSample = (float)vocalSampleRaw / 32768.0f;
-                sampleValue += vocalSample * 1.0f; // Full volume priority
+                sampleValue += vocalSample * currentGain; // High-fidelity presence
+                mVocalActive = true;
+            } else {
+                // [DIAG-65] Logarithmic tail: if buffer is empty, ramp down gain
+                float currentGain = mVocalGain.load();
+                if (currentGain > 0.0f) {
+                    currentGain -= kVocalFadeStep;
+                    if (currentGain < 0.0f) currentGain = 0.0f;
+                    mVocalGain.store(currentGain);
+                    mVocalActive = true; // Stay active during fade
+                } else {
+                    mVocalActive = false;
+                }
             }
 
             // Simple clipping protection

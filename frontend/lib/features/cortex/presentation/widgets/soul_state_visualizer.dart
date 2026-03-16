@@ -6,7 +6,8 @@ import '../../../../data/providers/cortex_providers.dart';
 import '../../../../data/providers/mentor_providers.dart';
 
 class SoulStateVisualizer extends ConsumerStatefulWidget {
-  const SoulStateVisualizer({super.key});
+  final bool isVaultView;
+  const SoulStateVisualizer({super.key, this.isVaultView = false});
 
   @override
   ConsumerState<SoulStateVisualizer> createState() => _SoulStateVisualizerState();
@@ -62,6 +63,7 @@ class _SoulStateVisualizerState extends ConsumerState<SoulStateVisualizer>
                 mentorColor: mentorState.primaryColor,
                 resonanceColor: MusaiTheme.deepSpaceTeal,
                 isLive: isLive,
+                isVaultView: widget.isVaultView,
               ),
             );
           },
@@ -81,6 +83,7 @@ class _WavePainter extends CustomPainter {
   final Color mentorColor;
   final Color resonanceColor;
   final bool isLive;
+  final bool isVaultView;
 
   _WavePainter({
     required this.progress, 
@@ -92,98 +95,112 @@ class _WavePainter extends CustomPainter {
     required this.mentorColor,
     required this.resonanceColor,
     required this.isLive,
+    required this.isVaultView,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final centerY = size.height / 2;
     final isActuallyActive = isLive && (volume > 0.005);
+    final baseOpacity = isVaultView ? 0.05 : 1.0;
 
-    // 1. DEEP SPACE RESONANCE (ALPHA GLOW ANCHOR)
-    if (isActuallyActive) {
-      final effectiveResonance = math.max(resonance, volume * 0.8);
-      
-      final bloomPaint = Paint()
-        ..color = mentorColor.withAlpha((effectiveResonance * 150).clamp(0, 180).toInt())
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 + (effectiveResonance * 60));
-      
-      canvas.drawCircle(Offset(size.width / 2, centerY), 60 + (effectiveResonance * 120), bloomPaint);
-    }
-
-    // 2. SPECTRAL HARMONY (FFT BARS - FULL LUMINANCE)
+    // 1. SPECTRAL AURA (FFT BARS - HIGH DENSITY & GAPLESS [SPECTRAL_DENSITY])
     if (isActuallyActive && spectrum.isNotEmpty) {
-      final barPaint = Paint()
-        ..color = mentorColor.withAlpha(80) 
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2;
-        
-      final barCount = math.min(spectrum.length, 120); // Fewer bars, more impact
+      final barCount = math.min(spectrum.length, 256); // [GAPLESS_DENSITY]
       final barWidth = size.width / barCount;
+      final maxHeight = size.height * 0.45;
       
+      final barPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = mentorColor.withOpacity(0.25 * baseOpacity); 
+        
       for (int i = 0; i < barCount; i++) {
-        final magnitude = spectrum[i] * 400.0 * (1.0 + resonance); // Aggressive scaling
+        // [MAGNITUDE_CONSTRAINTS]
+        final val = (i < spectrum.length) ? spectrum[i] : 0.0;
+        final mag = math.min(val * 500.0 * (1.0 + resonance * 1.5), maxHeight);
         final x = i * barWidth;
         
-        canvas.drawLine(
-          Offset(x, centerY - (magnitude / 2)),
-          Offset(x, centerY + (magnitude / 2)),
+        // Draw centered bars with subtle overlap for gapless feel
+        canvas.drawRect(
+          Rect.fromLTRB(x, centerY - mag/2, x + barWidth + 0.2, centerY + mag/2),
           barPaint,
         );
       }
     }
 
-    // 3. SOUL VIBRATION (THE CRAZY OSCILLOSCOPE)
-    final path = Path();
-    final wavePaint = Paint()
-      ..color = mentorColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
+    // 2. DEEP SPACE RESONANCE (BLOOM ANCHOR)
+    if (isActuallyActive && !isVaultView) {
+      final effectiveResonance = math.max(resonance, volume * 1.2);
+      
+      final bloomPaint = Paint()
+        ..color = mentorColor.withAlpha((effectiveResonance * 100).clamp(0, 140).toInt())
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 40 + (effectiveResonance * 100));
+      
+      canvas.drawCircle(Offset(size.width / 2, centerY), 90 + (effectiveResonance * 160), bloomPaint);
+    }
 
-    for (double x = 0; x <= size.width; x += 2) {
+    // 3. THE CRAZY OSCILLOSCOPE (TRIPLE-LAYER NEON [CRAZY_WAVE])
+    final path = Path();
+    final random = math.Random(42); // Deterministic jitter
+    
+    for (double x = 0; x <= size.width; x += 1.5) {
       final normalizedX = x / size.width;
       
-      // Multi-Sine Layering for "Crazy" motion
-      final baseAmplitude = isActuallyActive ? 40.0 : 8.0;
-      final audioSurge = volume * 180.0;
-      final resonanceMod = resonance * 60.0;
+      final baseAmplitude = isActuallyActive ? 50.0 : 10.0;
+      final audioSurge = volume * 350.0;
       
-      // Secondary harmonic
-      final secondaryWave = math.sin((normalizedX * 12.0 + progress * 5.0) * math.pi) * (audioSurge * 0.3);
+      // Triple-sine Synthesis with Jitter
+      final freq = 2.0 + (volume * 8.0) + (resonance * 10.0);
+      final phase = progress * 6.0;
+      final jitter = isActuallyActive ? (random.nextDouble() - 0.5) * 15.0 * volume : 0.0;
       
-      final amplitude = baseAmplitude + audioSurge + resonanceMod + secondaryWave;
-      final frequency = 2.0 + (volume * 4.0) + (resonance * 2.0);
-
-      // Envelope: Taper ends to prevent flickering on screen edges
-      final envelope = math.sin(normalizedX * math.pi);
+      final wave1 = math.sin((normalizedX * freq + phase) * 2 * math.pi);
+      final wave2 = math.sin((normalizedX * freq * 2.3 + phase * 1.8) * 2 * math.pi) * 0.4;
+      final wave3 = math.sin((normalizedX * freq * 0.7 + phase * 0.9) * 2 * math.pi) * 0.3;
       
-      final y = centerY + 
-          math.sin((normalizedX * frequency + progress * 2.5) * 2 * math.pi) * amplitude * envelope;
+      final resonanceBoost = 1.2 + (resonance * 1.5);
+      final amplitude = (baseAmplitude + audioSurge) * resonanceBoost * baseOpacity;
+      final envelope = math.sin(normalizedX * math.pi); // Taper edges
+      
+      final y = centerY + (wave1 + wave2 + wave3) * amplitude * envelope + jitter;
           
-      if (x == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+      if (x == 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
     }
 
     if (isActuallyActive) {
-      // Glow Layer for the Sine Wave
-      canvas.drawPath(
-        path,
-        wavePaint..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 + (volume * 15)),
-      );
+      // NEON LAYER 1: OUTER SPECTRAL BLOOM
+      canvas.drawPath(path, Paint()
+        ..color = mentorColor.withOpacity(0.2 * baseOpacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 20.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22.0));
+
+      // NEON LAYER 2: VIBRANT HALO
+      canvas.drawPath(path, Paint()
+        ..color = mentorColor.withOpacity(0.5 * baseOpacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0));
+
+      // NEON LAYER 3: PHOTONIC CORE
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withOpacity(0.8 * baseOpacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0));
     }
     
-    // Solid Core
-    canvas.drawPath(
-      path,
-      wavePaint..maskFilter = null..color = mentorColor,
-    );
+    // SOLID RADIANT ANCHOR
+    canvas.drawPath(path, Paint()
+      ..color = isActuallyActive ? mentorColor : mentorColor.withAlpha(50)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round);
   }
 
   @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) =>
+  bool shouldRepaint(_WavePainter oldDelegate) =>
       oldDelegate.progress != progress || 
       oldDelegate.isLive != isLive || 
       oldDelegate.volume != volume ||
@@ -191,5 +208,6 @@ class _WavePainter extends CustomPainter {
       oldDelegate.aiResonance != aiResonance ||
       oldDelegate.euteOutputAmplitude != euteOutputAmplitude ||
       oldDelegate.spectrum != spectrum ||
+      oldDelegate.isVaultView != isVaultView ||
       oldDelegate.mentorColor != mentorColor;
 }

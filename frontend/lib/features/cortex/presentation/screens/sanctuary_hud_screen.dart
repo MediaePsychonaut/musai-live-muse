@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/musai_theme.dart';
@@ -14,12 +15,18 @@ import '../widgets/engine_toggle.dart';
 import '../widgets/mentor_button.dart';
 import '../widgets/agency_pulse_overlay.dart';
 
-
-class SanctuaryHudScreen extends ConsumerWidget {
+class SanctuaryHudScreen extends ConsumerStatefulWidget {
   const SanctuaryHudScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SanctuaryHudScreen> createState() => _SanctuaryHudScreenState();
+}
+
+class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
+  bool _isVaultView = false;
+
+  @override
+  Widget build(BuildContext context) {
     final liveStream = ref.watch(liveStreamStateProvider);
     final mentorState = ref.watch(mentorProvider);
     final engineType = ref.watch(engineProvider);
@@ -27,30 +34,22 @@ class SanctuaryHudScreen extends ConsumerWidget {
     final isTunerActive = ref.watch(tunerEnabledProvider);
     final isSessionActive = ref.watch(isSessionActiveProvider);
     final sessionDuration = ref.watch(sessionTimerProvider);
-    ref.watch(sensoryProvider); // Activate persistent sensory loop
+    ref.watch(sensoryProvider); 
     final status = liveStream.value?.status ?? LiveStreamStatus.disconnected;
-
 
     String statusText = "MUSE: MEDITATING";
     switch (status) {
-      case LiveStreamStatus.connecting:
-        statusText = "MUSE: SYNCHRONIZING...";
-        break;
-      case LiveStreamStatus.connected:
-        statusText = "MUSE: LIVE";
-        break;
-      case LiveStreamStatus.error:
-        statusText = "MUSE: OFFLINE (CHECK KEY)";
-        break;
-      case LiveStreamStatus.disconnected:
-        statusText = "MUSE: MEDITATING";
-        break;
+      case LiveStreamStatus.connecting: statusText = "MUSE: SYNCHRONIZING..."; break;
+      case LiveStreamStatus.connected: statusText = "MUSE: LIVE"; break;
+      case LiveStreamStatus.error: statusText = "MUSE: OFFLINE"; break;
+      case LiveStreamStatus.disconnected: statusText = "MUSE: MEDITATING"; break;
     }
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Background: Deep Space Anchor Gradient Overlay
+          // 1. STABLE BACKGROUND (GRADIENT ANCHOR)
           IgnorePointer(
             child: Container(
               decoration: BoxDecoration(
@@ -68,338 +67,348 @@ class SanctuaryHudScreen extends ConsumerWidget {
             ),
           ),
           
-          // 2. The "Beautiful Sine Wave" (Oscilloscope Glory Layer)
-          const IgnorePointer(
-            child: SoulStateVisualizer(),
+          // 2. THE LUMINOUS WAVE (CONTEXT-AWARE)
+          IgnorePointer(
+            child: SoulStateVisualizer(isVaultView: _isVaultView),
           ),
           
-          SafeArea(
-            child: PageView(
-              children: [
-                // PAGE 1: THE SANCTUARY HUD
-                SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 40, bottom: 20), // Heightened anchor
-                    child: OrientationBuilder(
-                      builder: (context, orientation) {
-                        final isLandscape = orientation == Orientation.landscape;
-                        
-                        // 1. TOP CONTROL & IDENTITY GROUP
-                        final indicatorsAndIdentity = isLandscape
-                            ? Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
-                                      ),
-                                    ),
-                                    _buildMentorIdentity(context, mentorState),
-                                    Expanded(
-                                      child: Align(
-                                        alignment: Alignment.centerRight,
-                                        child: _buildDroneIndicator(context, ref, hardwareState, mentorState),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 30),
+          // 3. CINEMATIC OVERLAY SYSTEM (TRANSITIONS)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            switchInCurve: Curves.easeInOut,
+            switchOutCurve: Curves.easeInOut,
+            layoutBuilder: (child, previousChildren) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                   ...previousChildren,
+                   if (child != null) child,
+                ],
+              );
+            },
+            transitionBuilder: (child, animation) {
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, _) {
+                  final blurValue = (1.0 - animation.value) * 15.0;
+                  return ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: blurValue, sigmaY: blurValue),
+                    child: FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                  );
+                },
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey(mentorState.name), 
+              child: SafeArea(
+                child: PageView(
+                  onPageChanged: (index) {
+                    setState(() {
+                      _isVaultView = index == 1;
+                    });
+                  },
+                  children: [
+                    // PAGE 1: THE SANCTUARY HUD
+                    SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 40, bottom: 40),
+                        child: OrientationBuilder(
+                          builder: (context, orientation) {
+                            final isLandscape = orientation == Orientation.landscape;
+                            
+                            final indicatorsAndIdentity = isLandscape
+                                ? Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
-                                        _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                        Expanded(
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
+                                          ),
+                                        ),
+                                        _buildMentorIdentity(context, mentorState),
+                                        Expanded(
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(height: 4), // TACTILE PERFECTION (MISSION: GEOMETRY-FINALE)
-                                  _buildMentorIdentity(context, mentorState),
-                                ],
-                              );
-
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            indicatorsAndIdentity,
-                            const SizedBox(height: 30),
-                            
-                            // ENGINE SWITCHER (MISSION: DYNAMIC-INJECTION)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                EngineToggle(
-                                  label: "GEN 2.0 (v1α)",
-                                  isActive: engineType == EngineType.flash20Exp,
-                                  onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash20Exp),
-                                  color: mentorState.primaryColor,
-                                ),
-                                const SizedBox(width: 12),
-                                EngineToggle(
-                                  label: "GEN 2.5 (v1β)",
-                                  isActive: engineType == EngineType.flash25Native,
-                                  onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash25Native),
-                                  color: mentorState.primaryColor,
-                                ),
-                                const SizedBox(width: 12),
-                                EngineToggle(
-                                  label: "TUNER",
-                                  isActive: isTunerActive,
-                                  onTap: () => ref.read(tunerEnabledProvider.notifier).state = !isTunerActive,
-                                  color: Colors.white70,
-                                ),
-                              ],
-                            ),
-                            
-                            const SizedBox(height: 40),
-
-                            // 3. STATUS & BLOOM
-                            RepaintBoundary(
-                              child: BloomBorder(
-                                bloomColor: mentorState.primaryColor,
-                                borderRadius: mentorState.borderRadius,
-                                pulseTick: liveStream.value?.pulseTick ?? 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                                  child: Text(
-                                    statusText,
-                                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                          letterSpacing: 8,
-                                          color: mentorState.primaryColor,
-                                          shadows: [
-                                            Shadow(
-                                              color: mentorState.primaryColor,
-                                              blurRadius: 10,
-                                            ),
-                                          ],
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 50),
-                            
-                            // 4. SOUL STATE (VISUALIZER)
-                            RepaintBoundary(
-                              child: Column(
-                                children: [
-                                  if (isTunerActive) ...[
-                                    Text(
-                                      "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz",
-                                      style: TextStyle(
-                                        color: MusaiTheme.parchment.withAlpha(200),
-                                        fontSize: 24, // Bolder Tuner Output
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 2,
-                                        shadows: [
-                                          Shadow(color: mentorState.primaryColor, blurRadius: 15),
-                                        ],
-                                      ),
-                                    ),
-                                    Text(
-                                      "${(liveStream.value?.volume ?? 0) > 0.05 ? (liveStream.value?.pitch.toStringAsFixed(1) ?? "--") : "--"} Hz / deviation: ${(liveStream.value?.volume ?? 0) > 0.05 ? (liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--") : "--"} cents",
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: (liveStream.value?.volume ?? 0) > 0.05 ? mentorState.primaryColor : Colors.white24,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                  ],
-                                  // Wave Visualizer removed from here - now in background Positioned.fill
-                                ],
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 60),
-                            
-                            // 5. CONTROL HUB
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: mentorState.primaryColor.withAlpha(51),
-                                    blurRadius: 30,
-                                    spreadRadius: 5,
-                                  ),
-                                ],
-                              ),
-                              child: IconButton(
-                                iconSize: 48,
-                                icon: Icon(
-                                  status == LiveStreamStatus.connected 
-                                      ? Icons.mic_rounded 
-                                      : Icons.mic_none_rounded,
-                                ),
-                                onPressed: () {
-                                  final notifier = ref.read(liveStreamStateProvider.notifier);
-                                  if (status == LiveStreamStatus.connected) {
-                                    notifier.disconnect();
-                                  } else {
-                                    notifier.connect();
-                                  }
-                                },
-                                style: IconButton.styleFrom(
-                                  backgroundColor: MusaiTheme.sovereignBlack,
-                                  foregroundColor: status == LiveStreamStatus.connected 
-                                      ? mentorState.primaryColor 
-                                      : mentorState.primaryColor.withAlpha(153),
-                                  padding: const EdgeInsets.all(24),
-                                  side: BorderSide(
-                                    color: mentorState.primaryColor.withAlpha(128),
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 40),
-
-                            // 6. SESSION HUB
-                            if (!isSessionActive)
-                              OutlinedButton(
-                                onPressed: () => _showSessionStartModal(context, ref),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: mentorState.primaryColor,
-                                  side: BorderSide(color: mentorState.primaryColor.withAlpha(100)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                ),
-                                child: const Text("START SESSION", style: TextStyle(letterSpacing: 2)),
-                              )
-                            else
-                              Column(
-                                children: [
-                                  Text(
-                                    _formatDuration(sessionDuration),
-                                    style: TextStyle(
-                                      color: mentorState.primaryColor,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 4,
-                                      fontFamily: 'RobotoMono',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Column(
+                                  )
+                                : Column(
                                     children: [
-                                      Text(
-                                        "SESSION TARGET",
-                                        style: TextStyle(
-                                          color: mentorState.primaryColor.withAlpha(80),
-                                          fontSize: 9,
-                                          letterSpacing: 3,
-                                          fontFamily: 'SpaceMono',
-                                          fontWeight: FontWeight.bold,
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 30),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
+                                            _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                          ],
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 800),
-                                        transitionBuilder: (child, animation) {
-                                          return FadeTransition(
-                                            opacity: animation,
-                                            child: ScaleTransition(
-                                              scale: Tween<double>(begin: 0.95, end: 1.0).animate(CurvedAnimation(
-                                                parent: animation,
-                                                curve: Curves.elasticOut,
-                                              )),
-                                              child: child,
-                                            ),
-                                          );
-                                        },
-                                        child: Container(
-                                          key: ValueKey(ref.watch(sessionObjectiveProvider)),
-                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                                          decoration: BoxDecoration(
-                                            border: Border.symmetric(
-                                              horizontal: BorderSide(color: mentorState.primaryColor.withAlpha(30), width: 0.5),
-                                            ),
+                                      _buildMentorIdentity(context, mentorState),
+                                    ],
+                                  );
+
+                            return Column(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                indicatorsAndIdentity,
+                                const SizedBox(height: 30),
+                                
+                                // ENGINE SWITCHER
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    EngineToggle(
+                                      label: "GEN 2.0 (v1α)",
+                                      isActive: engineType == EngineType.flash20Exp,
+                                      onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash20Exp),
+                                      color: mentorState.primaryColor,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    EngineToggle(
+                                      label: "GEN 2.5 (v1β)",
+                                      isActive: engineType == EngineType.flash25Native,
+                                      onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash25Native),
+                                      color: mentorState.primaryColor,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    EngineToggle(
+                                      label: "TUNER",
+                                      isActive: isTunerActive,
+                                      onTap: () => ref.read(tunerEnabledProvider.notifier).state = !isTunerActive,
+                                      color: mentorState.primaryColor,
+                                    ),
+                                  ],
+                                ),
+                                
+                                const SizedBox(height: 40),
+                                
+                                // Tuner Output (Priority Display)
+                                if (isTunerActive)
+                                  RepaintBoundary(
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          liveStream.value?.noteName ?? "--",
+                                          style: TextStyle(
+                                            color: MusaiTheme.parchment.withAlpha(240),
+                                            fontSize: 64,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 8,
+                                            shadows: [
+                                              Shadow(color: mentorState.primaryColor, blurRadius: 30),
+                                              Shadow(color: mentorState.primaryColor, blurRadius: 60),
+                                            ],
                                           ),
-                                          child: Text(
-                                            (ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW").toUpperCase(),
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.white.withAlpha(200),
-                                              fontSize: 14,
-                                              letterSpacing: 2.5,
-                                              fontFamily: 'Montserrat',
-                                              fontWeight: FontWeight.w700,
-                                              shadows: [
-                                                Shadow(
-                                                  color: mentorState.primaryColor.withAlpha(150),
-                                                  blurRadius: 10,
-                                                ),
-                                              ],
-                                            ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        // Visual Deviation Gauge [DIAG-RESTORE]
+                                        _TunerGauge(
+                                          cents: liveStream.value?.centsDeviation ?? 0.0,
+                                          primaryColor: mentorState.primaryColor,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: mentorState.primaryColor.withAlpha(180),
+                                            letterSpacing: 2.0,
+                                            fontWeight: FontWeight.bold,
                                           ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                      ],
+                                    ),
+                                  ),
+
+                                // CENTRAL RESONANCE HUB (Status indicator)
+                                Container(
+                                  height: 80,
+                                  alignment: Alignment.center,
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 300),
+                                    opacity: status == LiveStreamStatus.connected ? 1.0 : 0.4,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: mentorState.primaryColor.withAlpha(80)),
+                                        borderRadius: BorderRadius.circular(4),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: mentorState.primaryColor.withAlpha(status == LiveStreamStatus.connected ? 40 : 15),
+                                            blurRadius: status == LiveStreamStatus.connected ? 30 : 15,
+                                            spreadRadius: 2,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        statusText,
+                                        style: TextStyle(
+                                          color: mentorState.primaryColor,
+                                          letterSpacing: 4,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w300,
+                                          shadows: status != LiveStreamStatus.connected ? [
+                                             Shadow(color: mentorState.primaryColor.withAlpha(150), blurRadius: 20)
+                                          ] : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // SESSION STATUS
+                                if (isSessionActive)
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        "SESSION TIME: ${_formatDuration(sessionDuration)}",
+                                        style: TextStyle(
+                                          color: MusaiTheme.parchment.withAlpha(150),
+                                          letterSpacing: 2,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        "OBJECTIVE: ${(ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW").toUpperCase()}",
+                                        style: TextStyle(
+                                          color: mentorState.primaryColor.withAlpha(200),
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.5,
+                                          fontSize: 10,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
-                                  TextButton(
+                                
+                                const SizedBox(height: 50),
+                                
+                                // MIC ACTUATOR (CIRCULAR SOVEREIGNTY)
+                                GestureDetector(
+                                  onTap: () {
+                                    if (isSessionActive) {
+                                       ref.read(isSessionActiveProvider.notifier).state = false;
+                                       ref.read(sessionTimerProvider.notifier).stop();
+                                    } else {
+                                       _showSessionStartModal(context, ref);
+                                    }
+                                  },
+                                  child: BloomBorder(
+                                    bloomColor: mentorState.primaryColor,
+                                    pulseTick: liveStream.value?.pulseTick ?? 0,
+                                    isCircle: true,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 300),
+                                      width: 90,
+                                      height: 90,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isSessionActive 
+                                            ? mentorState.primaryColor.withOpacity(0.15) 
+                                            : Colors.transparent,
+                                        border: Border.all(
+                                          color: isSessionActive 
+                                              ? mentorState.primaryColor 
+                                              : mentorState.primaryColor.withOpacity(0.3),
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.mic_none_rounded,
+                                        size: 48,
+                                        color: isSessionActive ? mentorState.primaryColor : Colors.white24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 60),
+                                
+                                // SESSION CONTROLS
+                                if (!isSessionActive)
+                                  SizedBox(
+                                    width: 220,
+                                    height: 50,
+                                    child: OutlinedButton(
+                                      onPressed: () => _showSessionStartModal(context, ref),
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(color: mentorState.primaryColor.withAlpha(100)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                                      ),
+                                      child: const Text("START SESSION", style: TextStyle(letterSpacing: 3, color: Colors.white70)),
+                                    ),
+                                  )
+                                else
+                                  OutlinedButton(
                                     onPressed: () {
                                       ref.read(isSessionActiveProvider.notifier).state = false;
+                                      ref.read(sessionTimerProvider.notifier).stop();
                                     },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.white38,
-                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                      side: const BorderSide(color: Colors.white12),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: MusaiTheme.vitalRed),
                                       shape: const RoundedRectangleBorder(),
                                     ),
                                     child: const Text(
                                       "COMPLETE SESSION",
-                                      style: TextStyle(fontSize: 10, letterSpacing: 4),
+                                      style: TextStyle(fontSize: 10, letterSpacing: 4, color: MusaiTheme.vitalRed),
                                     ),
                                   ),
-                                ],
-                              ),
 
-                            const SizedBox(height: 40),
-                            
-                            // 7. MENTOR SELECTOR
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                MentorButton(mentor: Mentor.eute, label: "EUTE"),
-                                SizedBox(width: 8),
-                                MentorButton(mentor: Mentor.saravi, label: "SARAVÍ"),
-                                SizedBox(width: 8),
-                                MentorButton(mentor: Mentor.orfio, label: "ORFIO"),
+                                const SizedBox(height: 80),
+                                
+                                // MENTOR SELECTOR
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const MentorButton(mentor: Mentor.eute, label: "EUTE"),
+                                    const SizedBox(width: 12),
+                                    const MentorButton(mentor: Mentor.saravi, label: "SARAVÍ"),
+                                    const SizedBox(width: 12),
+                                    const MentorButton(mentor: Mentor.orfio, label: "ORFIO"),
+                                  ],
+                                ),
+                                
+                                const SizedBox(height: 40),
+                                
+                                Text(
+                                  "SWIPE LEFT FOR PROGRESS VAULT",
+                                  style: TextStyle(
+                                    color: MusaiTheme.parchment.withAlpha(80),
+                                    fontSize: 9,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
                               ],
-                            ),
-                            
-                            const SizedBox(height: 30),
-                            
-                            Text(
-                              "SWIPE LEFT FOR PROGRESS",
-                              style: TextStyle(
-                                color: MusaiTheme.parchment.withAlpha(50),
-                                fontSize: 8,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
+                    
+                    // PAGE 2: PROGRESS VAULT
+                    const ProgressView(),
+                  ],
                 ),
-                
-                // PAGE 2: PROGRESS VAULT
-                const ProgressView(),
-              ],
+              ),
             ),
           ),
           
-          // AI AGENCY BLOOM (MISSION: AGENCY-RESONANCE)
+          // 4. AGENCY PULSE LAYER
           const AgencyPulseOverlay(),
         ],
       ),
@@ -519,7 +528,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: mentorState.primaryColor.withAlpha(100)),
                       ),
-                      child: const Text("TAP TEMPO", style: TextStyle(letterSpacing: 4)),
+                      child: const Text("TAP TEMPO", style: TextStyle(letterSpacing: 4, color: Colors.white)),
                     ),
                   ),
                 ],
@@ -637,4 +646,80 @@ class SanctuaryHudScreen extends ConsumerWidget {
   }
 }
 
-// Modular components moved to separate files
+class _TunerGauge extends StatelessWidget {
+  final double cents;
+  final Color primaryColor;
+
+  const _TunerGauge({required this.cents, required this.primaryColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 200,
+      height: 30,
+      child: CustomPaint(
+        painter: _GaugePainter(cents: cents, color: primaryColor),
+      ),
+    );
+  }
+}
+
+class _GaugePainter extends CustomPainter {
+  final double cents; // -50 to +50
+  final Color color;
+
+  _GaugePainter({required this.cents, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+    final centerX = size.width / 2;
+    
+    // Background Line
+    final bgPaint = Paint()
+      ..color = Colors.white10
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), bgPaint);
+    
+    // Ticks
+    final tickPaint = Paint()
+      ..color = Colors.white24
+      ..strokeWidth = 1.0;
+    
+    for (int i = -5; i <= 5; i++) {
+        final x = centerX + (i * size.width / 10);
+        final height = (i == 0) ? 12.0 : 6.0;
+        canvas.drawLine(Offset(x, centerY - height/2), Offset(x, centerY + height/2), tickPaint);
+    }
+    
+    // Indicator (Linear Displacement)
+    final clampedCents = cents.clamp(-50.0, 50.0);
+    final indicatorX = centerX + (clampedCents * size.width / 100);
+    
+    final glowColor = (cents.abs() < 5) ? color : Colors.white.withOpacity(0.8);
+    
+    final indicatorPaint = Paint()
+      ..color = glowColor
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+    
+    // Draw Glow
+    canvas.drawCircle(Offset(indicatorX, centerY), 6.0, indicatorPaint);
+    
+    // Draw Sharp Needle
+    final needlePaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.0;
+    
+    canvas.drawLine(
+      Offset(indicatorX, centerY - 10),
+      Offset(indicatorX, centerY + 10),
+      needlePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GaugePainter oldDelegate) => oldDelegate.cents != cents;
+}

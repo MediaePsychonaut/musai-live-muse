@@ -7,6 +7,7 @@ class BloomBorder extends StatefulWidget {
   final double strokeWidth;
   final double blurRadius;
   final int pulseTick; // Injected from cortex provider
+  final bool isCircle;
 
   const BloomBorder({
     super.key,
@@ -16,6 +17,7 @@ class BloomBorder extends StatefulWidget {
     this.borderRadius = 8.0,
     this.strokeWidth = 1.0,
     this.blurRadius = 4.0,
+    this.isCircle = false,
   });
 
   @override
@@ -70,6 +72,7 @@ class _BloomBorderState extends State<BloomBorder> with SingleTickerProviderStat
             radius: widget.borderRadius,
             strokeWidth: widget.strokeWidth + (_decayAnimation.value * 2.0), // Slight stroke thickening
             blurRadius: activeBlur,
+            isCircle: widget.isCircle,
           ),
           child: widget.child,
         );
@@ -83,19 +86,20 @@ class _BloomPainter extends CustomPainter {
   final double radius;
   final double strokeWidth;
   final double blurRadius;
+  final bool isCircle;
 
   _BloomPainter({
     required this.color,
     required this.radius,
     required this.strokeWidth,
     required this.blurRadius,
+    this.isCircle = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
-
+    
     // 1. Draw the Bloom (Glow)
     final glowPaint = Paint()
       ..color = color
@@ -103,15 +107,25 @@ class _BloomPainter extends CustomPainter {
       ..strokeWidth = strokeWidth
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurRadius);
     
-    canvas.drawRRect(rrect, glowPaint);
+    if (isCircle) {
+      canvas.drawCircle(size.center(Offset.zero), size.width / 2, glowPaint);
+    } else {
+      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+      canvas.drawRRect(rrect, glowPaint);
+    }
 
     // 2. Draw the Sharp 1px Border (Opaque core)
     final strokePaint = Paint()
       ..color = color.withAlpha(255) // Keep core solid
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0; 
+      ..strokeWidth = 1.2; 
     
-    canvas.drawRRect(rrect, strokePaint);
+    if (isCircle) {
+      canvas.drawCircle(size.center(Offset.zero), size.width / 2, strokePaint);
+    } else {
+      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+      canvas.drawRRect(rrect, strokePaint);
+    }
   }
 
   @override

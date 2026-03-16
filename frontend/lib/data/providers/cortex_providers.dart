@@ -25,6 +25,7 @@ class LiveStreamState {
   final double euteOutputAmplitude; // Native RMS
   final int pulseTick; // Oboe Native Downbeat
   final double centsDeviation; // Pitch Deviation
+  final String noteName; // Pitch to Note mapping
 
   LiveStreamState({
     required this.status,
@@ -37,6 +38,7 @@ class LiveStreamState {
     this.euteOutputAmplitude = 0.0,
     this.pulseTick = 0,
     this.centsDeviation = 0.0,
+    this.noteName = "--",
   });
 
   LiveStreamState copyWith({
@@ -50,6 +52,7 @@ class LiveStreamState {
     double? euteOutputAmplitude,
     int? pulseTick,
     double? centsDeviation,
+    String? noteName,
   }) {
     return LiveStreamState(
       status: status ?? this.status,
@@ -62,6 +65,7 @@ class LiveStreamState {
       euteOutputAmplitude: euteOutputAmplitude ?? this.euteOutputAmplitude,
       pulseTick: pulseTick ?? this.pulseTick,
       centsDeviation: centsDeviation ?? this.centsDeviation,
+      noteName: noteName ?? this.noteName,
     );
   }
 }
@@ -159,8 +163,11 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
             if (active) {
               double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
               if (freq <= 0) freq = 196.0; 
-              hw.setKey("${freq.toStringAsFixed(0)}Hz");
-              debugPrint("[DEBUG_COMMAND] Drone Action: $active, Freq=$freq");
+              
+              // [DIAG-63] Map frequency to Note Name for HUD display
+              final note = _mapFreqToNote(freq);
+              hw.setKey(note);
+              debugPrint("[DEBUG_COMMAND] Drone Action: $active, Freq=$freq ($note)");
             }
           } else if (name == 'start_practice_session') {
             final nameArg = args['name'] ?? "Neural Rehearsal";
@@ -205,6 +212,18 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
   
   void updateState(LiveStreamState newState) {
     state = AsyncValue.data(newState);
+  }
+
+  String _mapFreqToNote(double freq) {
+    if (freq > 190 && freq < 200) return "G3";
+    if (freq > 215 && freq < 225) return "A3";
+    if (freq > 240 && freq < 255) return "B3";
+    if (freq > 255 && freq < 270) return "C4";
+    if (freq > 285 && freq < 305) return "D4";
+    if (freq > 320 && freq < 340) return "E4";
+    if (freq > 360 && freq < 380) return "F#4";
+    if (freq > 430 && freq < 450) return "A4";
+    return "${freq.toStringAsFixed(0)}Hz";
   }
 }
 
@@ -293,22 +312,36 @@ class SensoryNotifier extends Notifier<void> {
        }
     });
 
-    _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 60), (_) {
+    _stateThrottleTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       final notifier = ref.read(liveStreamStateProvider.notifier);
       final currentState = ref.read(liveStreamStateProvider).value;
       if (currentState != null) {
         final activeSessionId = ref.read(sessionManagerProvider);
-        if (activeSessionId != null && latestPitch > 0.0) {
+        if (activeSessionId != null && latestVolume > 0.05) {
            _practiceLedger.logTelemetry(activeSessionId, latestPitch, latestCents);
+           
+           // [MUSICAL-VAULT] High-fidelity event persistence
+           final noteName = notifier._mapFreqToNote(latestPitch);
+           _practiceLedger.logMusicalSequence(
+             activeSessionId, 
+             noteName, 
+             latestPitch, 
+             latestCents, 
+             latestVolume
+           );
         }
 
+        final service = notifier._service; 
+        
         notifier.updateState(currentState.copyWith(
-          pitch: latestPitch,
           volume: latestVolume,
+          pitch: latestPitch,
           spectrum: latestSpectrum,
+          violinResonance: service?.lastResonance ?? 0.0,
           aiResonance: latestAiResonance,
-          euteOutputAmplitude: latestAiResonance,
+          euteOutputAmplitude: service?.lastEuteAmplitude ?? 0.0,
           centsDeviation: latestCents,
+          noteName: (latestVolume > 0.05) ? notifier._mapFreqToNote(latestPitch) : "--",
         ));
       }
     });
