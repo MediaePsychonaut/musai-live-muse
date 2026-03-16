@@ -6,12 +6,10 @@ import '../../../../data/providers/cortex_providers.dart';
 import '../../../../data/providers/mentor_providers.dart';
 import '../widgets/soul_state_visualizer.dart';
 import '../widgets/bloom_border.dart';
-import '../../../../data/providers/engine_provider.dart';
 import '../../../../data/providers/hardware_provider.dart';
 import '../widgets/progress_view.dart';
 import '../../../../core/dsp/pitch_matrix.dart';
 import '../widgets/agency_indicator.dart';
-import '../widgets/engine_toggle.dart';
 import '../widgets/mentor_button.dart';
 import '../widgets/agency_pulse_overlay.dart';
 
@@ -29,7 +27,6 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
   Widget build(BuildContext context) {
     final liveStream = ref.watch(liveStreamStateProvider);
     final mentorState = ref.watch(mentorProvider);
-    final engineType = ref.watch(engineProvider);
     final hardwareState = ref.watch(hardwareProvider);
     final isTunerActive = ref.watch(tunerEnabledProvider);
     final isSessionActive = ref.watch(isSessionActiveProvider);
@@ -122,27 +119,38 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                             
                             final indicatorsAndIdentity = isLandscape
                                 ? Container(
-                                    height: 120, // [APEX-ALIGNMENT] Fixed header zone
+                                    height: 100, // [STABILIZATION] Robust header height
                                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                                    child: Stack(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center, // [ALIGMENT-ZENITH] Final baseline lock
                                       children: [
-                                        // Indicators Background Row
-                                        Align(
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
-                                              _buildDroneIndicator(context, ref, hardwareState, mentorState),
-                                            ],
+                                        // LEFT ANCHOR (Metronome)
+                                        Expanded(
+                                          flex: 1,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(right: 32),
+                                              child: _buildMetronomeIndicator(context, ref, hardwareState, mentorState),
+                                            ),
                                           ),
                                         ),
-                                        // [TERMINUS-ZENITH] Top-Centered Mentor Identity [UI-CONTRAST-ZENITH]
-                                        Align(
-                                          alignment: Alignment.topCenter,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(top: 20), // Final elevation polish
+                                        // CENTER ANCHOR (Identity)
+                                        Expanded(
+                                          flex: 2,
+                                          child: Center(
                                             child: _buildMentorIdentity(context, mentorState),
+                                          ),
+                                        ),
+                                        // RIGHT ANCHOR (Drone)
+                                        Expanded(
+                                          flex: 1,
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 32),
+                                              child: _buildDroneIndicator(context, ref, hardwareState, mentorState),
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -166,38 +174,9 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                   );
 
                             return Column(
-                              mainAxisAlignment: MainAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 indicatorsAndIdentity,
-                                const SizedBox(height: 30),
-                                
-                                // ENGINE SWITCHER
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    EngineToggle(
-                                      label: "GEN 2.0 (v1α)",
-                                      isActive: engineType == EngineType.flash20Exp,
-                                      onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash20Exp),
-                                      color: mentorState.primaryColor,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    EngineToggle(
-                                      label: "GEN 2.5 (v1β)",
-                                      isActive: engineType == EngineType.flash25Native,
-                                      onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash25Native),
-                                      color: mentorState.primaryColor,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    EngineToggle(
-                                      label: "TUNER",
-                                      isActive: isTunerActive,
-                                      onTap: () => ref.read(tunerEnabledProvider.notifier).state = !isTunerActive,
-                                      color: mentorState.primaryColor,
-                                    ),
-                                  ],
-                                ),
-                                
                                 const SizedBox(height: 40),
                                 
                                 // Tuner Output (Priority Display) [UI-SOVEREIGN-CANDY]
@@ -205,34 +184,35 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                   OrientationBuilder(
                                     builder: (context, orientation) {
                                       final bool isLandscape = orientation == Orientation.landscape;
-                                      final double tunerScale = isLandscape ? 1.5 : 1.0;
-                                      
-                                      return OverflowBox(
-                                        maxWidth: double.infinity,
-                                        maxHeight: double.infinity,
-                                        child: Transform.scale(
-                                          scale: tunerScale,
-                                          child: RepaintBoundary(
-                                            child: Column(
-                                              children: [
-                                                // Visual Deviation Gauge (Now handles the main label with Candy Opacity v2)
-                                                _TunerGauge(
-                                                  cents: liveStream.value?.centsDeviation ?? 0.0,
-                                                  primaryColor: mentorState.primaryColor,
-                                                  secondaryColor: mentorState.secondaryColor,
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Text(
-                                                  "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: mentorState.primaryColor.withAlpha(180),
-                                                    letterSpacing: 2.0,
-                                                    fontWeight: FontWeight.bold,
+                                      final double tunerScale = isLandscape ? 1.35 : 1.0;
+                                      return Center(
+                                        child: SizedBox(
+                                          width: 350,
+                                          height: 350,
+                                          child: Transform.scale(
+                                            scale: tunerScale,
+                                            child: RepaintBoundary(
+                                              child: Column(
+                                                children: [
+                                                  // Visual Deviation Gauge
+                                                  _TunerGauge(
+                                                    cents: liveStream.value?.centsDeviation ?? 0.0,
+                                                    primaryColor: mentorState.primaryColor,
+                                                    secondaryColor: mentorState.secondaryColor,
                                                   ),
-                                                ),
-                                                const SizedBox(height: 20),
-                                              ],
+                                                  const SizedBox(height: 12),
+                                                  Text(
+                                                    "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      color: mentorState.primaryColor.withAlpha(180),
+                                                      letterSpacing: 2.0,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 20),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -482,6 +462,7 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
 
   Widget _buildMentorIdentity(BuildContext context, MentorState mentorState) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center, // [ALIGMENT-ZENITH] Vertical centering
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(

@@ -45,12 +45,9 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
   HardwareNotifier() : super(HardwareState());
 
   void _ensureStableState(Function() action) {
-    // [HARDENING-REPAIR] Do not drop calls. Use Future.microtask to ensure 
-    // we don't trigger builds during state modification, but allow 
-    // multiple state changes to happen sequentially.
-    Future.microtask(() {
-      action();
-    });
+    // [HARDENING-REPAIR] Absolute synchronous state flux.
+    // Legacy microtasks caused race-conditions during rapid AI batch commands.
+    action();
   }
 
   void setMetronome(bool active) {

@@ -169,13 +169,21 @@ class GeminiLiveService {
 
             // [TURN-COMPLETION] Detect turn_complete to reset state and dispatch tools
             if (serverContent != null) {
+              // [BARGE-IN-DETECTION] Native Server Interruption
+              final bool interrupted = serverContent['interrupted'] ?? false;
+              if (interrupted) {
+                debugPrint("MUSE_LOG: [EUTE] SERVER INTERRUPT DETECTED. Instant vocal purge.");
+                AudioOutputService().stopVocalStream();
+                _isTurnActive = false;
+              }
+
               final bool turnComplete = serverContent['turn_complete'] ?? serverContent['turnComplete'] ?? false;
               if (turnComplete) {
                 debugPrint("MUSE_LOG: [EUTE] model_turn_complete detected. Resetting turn flag.");
                 if (!_isShieldedProcessing) {
                   _isTurnActive = false;
                   _dispatchPendingToolResponses(); // [PROTOCOL-GUARDIAN]
-                  AudioOutputService().stopVocalStream(); // Close stream if no pulse/drone
+                  // Note: stopVocalStream is now handled by interruption or turn end
                 }
               }
             }
@@ -644,11 +652,9 @@ class GeminiLiveService {
       }
 
       responseParts.add({
-        "function_response": {
-          "name": name,
-          if (id != null) "call_id": id,
-          "response": responsePayload
-        }
+        "id": id, 
+        "name": name,
+        "response": responsePayload // Usage metadata safely nested inside here
       });
     }
 
@@ -670,41 +676,34 @@ class GeminiLiveService {
 
     if (_channel != null && !_isDisposed) {
       try {
-        // [DOUBLE-ANCHOR-HARDENING] 
-        // 1. Dispatch tool results first (turn_complete: false)
+        // [SOVEREIGN-STEP-1] Dispatch the strict tool_response root object
         final resultsPayload = {
-          "client_content": {
-            "turns": [
-              {
-                "role": "user",
-                "parts": List<Map<String, dynamic>>.from(_pendingToolResponses)
-              }
-            ],
-            "turn_complete": false
+          "tool_response": {
+            "function_responses": List<Map<String, dynamic>>.from(_pendingToolResponses)
           }
         };
         _channel!.sink.add(jsonEncode(resultsPayload));
         
-        // 2. Dispatch turn closure after staggered delay (150ms)
-        // This prevents the "empty turn" race condition in Gemini's Bidi protocol
-        // [PROTOCOL-STABILITY-ULTIMATUM] Increased to 150ms for categorical stability
-        Future.delayed(const Duration(milliseconds: 150), () {
+        // [SOVEREIGN-STEP-2] Dispatch turn closure after staggered delay
+        // We MUST wait for the command queue to be 100% empty
+        Future.delayed(const Duration(milliseconds: 150), () async {
+          while (_isProcessingQueue || _commandQueue.isNotEmpty) {
+            await Future.delayed(const Duration(milliseconds: 50));
+            debugPrint("MUSE_LOG: [EUTE] Turn Closure Pulsing... Waiting for command queue.");
+          }
+
           if (_channel != null && !_isDisposed) {
             final closurePayload = {
               "client_content": {
+                "turns": [], // Protocol requires empty turns array for closure
                 "turn_complete": true
               }
             };
             _channel!.sink.add(jsonEncode(closurePayload));
             
-            // [SHIELD-LOCK-ZENITH] Only release if the command queue is finished
-            if (!_isProcessingQueue) {
-               _isShieldedProcessing = false; 
-               debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched. SHIELD_OFF.");
-               LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Ultimatum delay (150ms) | SHIELD_OFF");
-            } else {
-               debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ULTIMATUM: Staggered closure dispatched. SHIELD_KEPT_FOR_QUEUE.");
-            }
+            _isShieldedProcessing = false; 
+            debugPrint("MUSE_LOG: [EUTE] Protocol Anchor ZENITH: Queue drained. Independent closure dispatched. SHIELD_OFF.");
+            LabLogService().log("PROTOCOL", "TURN_CLOSE", metadata: "Step 2: Final Handshake | SHIELD_OFF");
           }
         });
 

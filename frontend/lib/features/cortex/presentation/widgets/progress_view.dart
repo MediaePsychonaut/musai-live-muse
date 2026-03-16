@@ -13,7 +13,6 @@ class ProgressView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(progressStatsProvider);
     final telemetryAsync = ref.watch(recentTelemetryProvider);
-    final debriefAsync = ref.watch(sessionDebriefProvider);
 
     return Padding(
       padding: const EdgeInsets.all(32.0),
@@ -64,53 +63,6 @@ class ProgressView extends ConsumerWidget {
                   ),
                   
                   const SizedBox(height: 20),
-                  
-                  // Oracle Debrief Display
-                  debriefAsync.when(
-                    data: (debrief) => debrief != null 
-                        ? Container(
-                            padding: const EdgeInsets.all(16),
-                            margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(
-                              color: MusaiTheme.deepSpaceTeal.withAlpha(20),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: MusaiTheme.deepSpaceTeal.withAlpha(50)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: MusaiTheme.deepSpaceTeal.withAlpha(10),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                )
-                              ]
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "NEURAL DEBRIEF",
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: MusaiTheme.deepSpaceTeal.withAlpha(200),
-                                    letterSpacing: 2.0,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  debrief,
-                                  style: TextStyle(
-                                    color: MusaiTheme.parchment.withAlpha(200),
-                                    fontSize: 12,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                    loading: () => const SizedBox.shrink(),
-                    error: (_,__) => const SizedBox.shrink(),
-                  ),
                   
                   Expanded(
                     child: telemetryAsync.when(
