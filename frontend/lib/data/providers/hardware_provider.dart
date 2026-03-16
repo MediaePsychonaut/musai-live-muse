@@ -44,43 +44,62 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
 
   HardwareNotifier() : super(HardwareState());
 
+  void _ensureStableState(Function() action) {
+    // [HARDENING-REPAIR] Do not drop calls. Use Future.microtask to ensure 
+    // we don't trigger builds during state modification, but allow 
+    // multiple state changes to happen sequentially.
+    Future.microtask(() {
+      action();
+    });
+  }
+
   void setMetronome(bool active) {
-    state = state.copyWith(isMetronomeActive: active);
-    if (active) {
-      _pulseEngine.start(state.bpm.toDouble());
-    } else {
-      _pulseEngine.stop();
-    }
+    _ensureStableState(() {
+      state = state.copyWith(isMetronomeActive: active);
+      if (active) {
+        _pulseEngine.start(state.bpm.toDouble());
+      } else {
+        _pulseEngine.stop();
+      }
+    });
   }
 
   void setDrone(bool active, {double? frequency}) {
-    state = state.copyWith(isDroneActive: active);
-    if (active) {
-      final freq = frequency ?? PitchMatrix.a440Frequencies[state.key] ?? 196.0;
-      _pulseEngine.startDrone(freq);
-    } else {
-      _pulseEngine.stopDrone();
-    }
+    _ensureStableState(() {
+      state = state.copyWith(isDroneActive: active);
+      if (active) {
+        final freq = frequency ?? PitchMatrix.a440Frequencies[state.key] ?? 196.0;
+        _pulseEngine.startDrone(freq);
+      } else {
+        _pulseEngine.stopDrone();
+      }
+    });
   }
 
   void setBpm(int bpm) {
-    state = state.copyWith(bpm: bpm);
-    if (state.isMetronomeActive) {
-      _pulseEngine.updateBpm(bpm.toDouble());
-    }
+    _ensureStableState(() {
+      state = state.copyWith(bpm: bpm);
+      if (state.isMetronomeActive) {
+        _pulseEngine.updateBpm(bpm.toDouble());
+      }
+    });
   }
 
   void setSignature(int signature) {
-    state = state.copyWith(signature: signature);
-    _pulseEngine.updateSignature(signature);
+    _ensureStableState(() {
+      state = state.copyWith(signature: signature);
+      _pulseEngine.updateSignature(signature);
+    });
   }
 
   void setKey(String key) {
-    state = state.copyWith(key: key);
-    if (state.isDroneActive) {
-      final freq = PitchMatrix.a440Frequencies[key] ?? 440.0;
-      _pulseEngine.updateDroneFreq(freq);
-    }
+    _ensureStableState(() {
+      state = state.copyWith(key: key);
+      if (state.isDroneActive) {
+        final freq = PitchMatrix.a440Frequencies[key] ?? 196.0;
+        _pulseEngine.updateDroneFreq(freq);
+      }
+    });
   }
   
   void toggleMetronome() {

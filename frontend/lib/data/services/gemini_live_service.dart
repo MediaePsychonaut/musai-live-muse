@@ -650,9 +650,10 @@ class GeminiLiveService {
         };
         _channel!.sink.add(jsonEncode(resultsPayload));
         
-        // 2. Dispatch turn closure after staggered delay (30ms)
+        // 2. Dispatch turn closure after staggered delay (100ms)
         // This prevents the "empty turn" race condition in Gemini's Bidi protocol
-        Future.delayed(const Duration(milliseconds: 30), () {
+        // [PROTOCOL-STABILITY-ZENITH] Increased to 100ms for high-load stability
+        Future.delayed(const Duration(milliseconds: 100), () {
           if (_channel != null && !_isDisposed) {
             final closurePayload = {
               "client_content": {

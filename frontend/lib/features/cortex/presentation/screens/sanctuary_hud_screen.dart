@@ -193,43 +193,39 @@ class _SanctuaryHudScreenState extends ConsumerState<SanctuaryHudScreen> {
                                 
                                 const SizedBox(height: 40),
                                 
-                                // Tuner Output (Priority Display)
+                                // Tuner Output (Priority Display) [UI-SOVEREIGN-CANDY]
                                 if (isTunerActive)
-                                  RepaintBoundary(
-                                    child: Column(
-                                      children: [
-                                        Text(
-                                          liveStream.value?.noteName ?? "--",
-                                          style: TextStyle(
-                                            color: MusaiTheme.parchment.withAlpha(240),
-                                            fontSize: 64,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 8,
-                                            shadows: [
-                                              Shadow(color: mentorState.primaryColor, blurRadius: 30),
-                                              Shadow(color: mentorState.primaryColor, blurRadius: 60),
+                                  OrientationBuilder(
+                                    builder: (context, orientation) {
+                                      final bool isLandscape = orientation == Orientation.landscape;
+                                      final double scale = isLandscape ? 1.2 : 1.0;
+                                      
+                                      return Transform.scale(
+                                        scale: scale,
+                                        child: RepaintBoundary(
+                                          child: Column(
+                                            children: [
+                                              // Visual Deviation Gauge (Now handles the main label)
+                                              _TunerGauge(
+                                                cents: liveStream.value?.centsDeviation ?? 0.0,
+                                                primaryColor: mentorState.primaryColor,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: mentorState.primaryColor.withAlpha(180),
+                                                  letterSpacing: 2.0,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 20),
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
-                                        // Visual Deviation Gauge [DIAG-RESTORE]
-                                        _TunerGauge(
-                                          cents: liveStream.value?.centsDeviation ?? 0.0,
-                                          primaryColor: mentorState.primaryColor,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          "${liveStream.value?.pitch.toStringAsFixed(1) ?? "0.0"} Hz / DEVIATION: ${liveStream.value?.centsDeviation.toStringAsFixed(1) ?? "--"} CENTS",
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: mentorState.primaryColor.withAlpha(180),
-                                            letterSpacing: 2.0,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 20),
-                                      ],
-                                    ),
+                                      );
+                                    }
                                   ),
 
                                 // CENTRAL RESONANCE HUB (Status indicator)
@@ -754,7 +750,7 @@ class _TunerGauge extends ConsumerWidget {
       children: [
         SizedBox(
           width: 360,
-          height: 60,
+          height: 80, // Slightly taller for evolved symbols
           child: CustomPaint(
             painter: _GaugePainter(cents: cents, color: primaryColor, noteName: noteName),
           ),
@@ -809,50 +805,56 @@ class _GaugePainter extends CustomPainter {
     // Draw Glow
     canvas.drawCircle(Offset(indicatorX, centerY), 6.0, indicatorPaint);
     
-    // Draw Sharp Needle
+    // Draw Sharp Needle [HARDENED-INDICATOR]
     final needlePaint = Paint()
       ..color = Colors.white
-      ..strokeWidth = 2.0;
+      ..strokeWidth = 3.0 // Increased thickness
+      ..strokeCap = StrokeCap.round;
     
     canvas.drawLine(
-      Offset(indicatorX, centerY - 15),
-      Offset(indicatorX, centerY + 15),
+      Offset(indicatorX, centerY - 20),
+      Offset(indicatorX, centerY + 20),
       needlePaint,
     );
 
-    // [SOVEREIGN-NEIGHBORS] Display neighbor semitones
+    // [SINGLE-LABEL-SYSTEM] Unified Dynamic Luminance
     if (noteName != "--") {
        final absCents = cents.abs();
        
-       // [CONTEXTUAL-LUMINANCE] Opacity fades from 0.1 to 1.0 based on precision (< 15 cents)
+       // [CONTEXTUAL-LUMINANCE]
+       // 0.1 opacity when cents >= 15
+       // 1.0 opacity when cents < 15
        final double opacity = absCents < 15 ? 1.0 : 0.1;
        
-       // [LOCK-IN-GLOW] Primary color glow only when < 5 cents
-       final baseLabelColor = absCents < 5 ? color : Colors.white;
+       // [LOCK-IN-GLOW] 
+       // Primary color + shadows only when < 5 cents
+       final bool isLocked = absCents < 5;
+       final baseLabelColor = isLocked ? color : Colors.white;
        
-       final labelStyle = TextStyle(
+       final symbolStyle = TextStyle(
          color: Colors.white.withValues(alpha: 0.2), 
-         fontSize: 10, 
+         fontSize: 18, // 50% of main label height roughly
+         fontWeight: FontWeight.w300,
          letterSpacing: 1
        );
        
-       final activeStyle = TextStyle(
+       final mainNoteStyle = TextStyle(
          color: baseLabelColor.withValues(alpha: opacity), 
-         fontSize: 16, 
+         fontSize: 32, // Main central label
          fontWeight: FontWeight.bold, 
          letterSpacing: 2,
-         shadows: absCents < 5 ? [
-           Shadow(color: color.withValues(alpha: 0.8), blurRadius: 8),
-           Shadow(color: color.withValues(alpha: 0.5), blurRadius: 15),
+         shadows: isLocked ? [
+           Shadow(color: color.withValues(alpha: 0.8), blurRadius: 10),
+           Shadow(color: color.withValues(alpha: 0.6), blurRadius: 20),
          ] : null,
        );
        
-       // Center Note
-       _drawCenteredText(canvas, noteName, Offset(centerX, centerY - 30), activeStyle);
+       // Center Note (The One Label to Rule Them All)
+       _drawCenteredText(canvas, noteName, Offset(centerX, centerY - 45), mainNoteStyle);
        
-       // Neighbor Hints (-50 and +50 cents) - Elevated 15px higher
-       _drawCenteredText(canvas, "♭", Offset(0, centerY - 40), labelStyle);
-       _drawCenteredText(canvas, "♯", Offset(size.width, centerY - 40), labelStyle);
+       // [SYMBOL-EVOLUTION] High-elevation accidentals
+       _drawCenteredText(canvas, "♭", Offset(0, centerY - 45), symbolStyle);
+       _drawCenteredText(canvas, "♯", Offset(size.width, centerY - 45), symbolStyle);
     }
   }
 
