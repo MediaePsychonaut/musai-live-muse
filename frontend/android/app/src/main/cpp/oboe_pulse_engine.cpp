@@ -79,8 +79,13 @@ private:
     std::atomic<float> mTargetDroneGain{0.0f};
     const float kGainStep = 0.001f; // ~50ms ramp at 24kHz
 
+    // Metronome Time Signature
+    std::atomic<int> mSignature{4};
+    std::atomic<int> mTickCount{0};
+
     // Vocal Ring Buffer (8 seconds @ 24kHz = 192000 samples)
     RingBuffer mVocalBuffer{192000};
+    std::atomic<bool> mClearVocalBuffer{false};
 
     void updatePhaseIncrement() {
         // We want a pulse every 60/BPM seconds.
@@ -98,7 +103,9 @@ public:
         mPhase = 0.0;
         mOscillatorPhase = 0.0;
         mIsPlaying = true;
+        mTickCount = 0;
         mVocalBuffer.clear();
+        mClearVocalBuffer = false;
 
         if (stream) {
             updatePhaseIncrement();
@@ -189,12 +196,6 @@ public:
         return rms;
     }
 
-    void updateBpm(double bpm) {
-        mBpm = bpm;
-        updatePhaseIncrement();
-        LOGI("BPM Updated: %f", mBpm);
-    }
-
     void updateDroneFreq(double freq) {
         mDroneFreq = freq;
         if (stream) {
@@ -202,6 +203,17 @@ public:
             mDronePhaseIncrement = mDroneFreq / (double)mSampleRate;
         }
         LOGI("Drone Freq Updated: %f", mDroneFreq);
+    }
+
+    void clearVocalBuffer() {
+        mClearVocalBuffer.store(true);
+        LOGI("Vocal Buffer Purge Requested.");
+    }
+
+    void updateSignature(int signature) {
+        mSignature.store(signature);
+        mTickCount.store(0); // Reset count on signature change
+        LOGI("Signature Updated: %d/4", signature);
     }
 
     DataCallbackResult onAudioReady(AudioStream *oboeStream, void *audioData, int32_t numFrames) override {
@@ -218,14 +230,24 @@ public:
                 if (mPhase >= 1.0) {
                     mPhase -= 1.0;
                     mOscillatorPhase = 1.0; // Trigger tick envelope
+                    
+                    // Increment tick count for signature tracking
+                    int currentCount = mTickCount.fetch_add(1);
+                    if (currentCount >= mSignature.load() - 1) {
+                        mTickCount.store(0);
+                    }
                 }
 
                 if (mOscillatorPhase > 0.0) {
-                    // C5 (523.25 Hz) for a clearer, more pleasant tick
+                    // C5 (523.25 Hz) for regular tick
+                    // C6 (1046.50 Hz) for Downbeat
+                    bool isDownbeat = (mTickCount.load() == 0);
+                    double freq = isDownbeat ? 1046.50 : 523.25;
+                    
                     mOscillatorPhase -= 0.01; // Faster decay for punch
                     if (mOscillatorPhase < 0.0) mOscillatorPhase = 0.0;
 
-                    sampleValue += sin(mOscillatorPhase * M_PI * 523.25 * 2.0) * (float)mOscillatorPhase * 0.8f;
+                    sampleValue += sin(mOscillatorPhase * M_PI * freq * 2.0) * (float)mOscillatorPhase * 0.8f;
                 }
             }
 
@@ -254,6 +276,11 @@ public:
             }
 
             // Mix AI Vocal from Ring Buffer
+            if (mClearVocalBuffer.load()) {
+                mVocalBuffer.clear();
+                mClearVocalBuffer.store(false);
+            }
+            
             int16_t vocalSampleRaw;
             if (mVocalBuffer.read(vocalSampleRaw)) {
                 float vocalSample = (float)vocalSampleRaw / 32768.0f;
@@ -314,4 +341,14 @@ Java_com_example_frontend_MainActivity_writeVocalData(JNIEnv* env, jobject /* th
     
     env->ReleaseByteArrayElements(data, bufferPtr, JNI_ABORT);
     return rms;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_clearVocalBuffer(JNIEnv* env, jobject /* this */) {
+    engine.clearVocalBuffer();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_frontend_MainActivity_updateSignature(JNIEnv* env, jobject /* this */, jint signature) {
+    engine.updateSignature(signature);
 }

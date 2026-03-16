@@ -7,12 +7,14 @@ class HardwareState {
   final bool isDroneActive;
   final int bpm;
   final String key; // Drone Key
+  final DateTime? lastAgencyCommandTimestamp;
 
   HardwareState({
     this.isMetronomeActive = false,
     this.isDroneActive = false,
     this.bpm = 60,
     this.key = 'A4',
+    this.lastAgencyCommandTimestamp,
   });
 
   HardwareState copyWith({
@@ -20,12 +22,14 @@ class HardwareState {
     bool? isDroneActive,
     int? bpm,
     String? key,
+    DateTime? lastAgencyCommandTimestamp,
   }) {
     return HardwareState(
       isMetronomeActive: isMetronomeActive ?? this.isMetronomeActive,
       isDroneActive: isDroneActive ?? this.isDroneActive,
       bpm: bpm ?? this.bpm,
       key: key ?? this.key,
+      lastAgencyCommandTimestamp: lastAgencyCommandTimestamp ?? this.lastAgencyCommandTimestamp,
     );
   }
 }
@@ -60,6 +64,10 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
     if (state.isMetronomeActive) {
       _pulseEngine.updateBpm(bpm.toDouble());
     }
+  }
+
+  void setSignature(int signature) {
+    _pulseEngine.updateSignature(signature);
   }
 
   void setKey(String key) {
@@ -122,6 +130,10 @@ class HardwareNotifier extends StateNotifier<HardwareState> {
         setBpm(derivedBpm);
       }
     }
+  }
+
+  void triggerAgencyPulse() {
+    state = state.copyWith(lastAgencyCommandTimestamp: DateTime.now());
   }
 }
 

@@ -36,6 +36,8 @@ class MainActivity : FlutterActivity() {
     external fun updateDroneFreq(freq: Double)
 
     external fun writeVocalData(data: ByteArray): Double
+    external fun clearVocalBuffer()
+    external fun updateSignature(signature: Int)
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +67,10 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGUMENT", "Data is null", null)
                     }
                 }
+                "clearVocal" -> {
+                    clearVocalBuffer()
+                    result.success(null)
+                }
                 "dispose" -> {
                     result.success(null)
                 }
@@ -84,6 +90,11 @@ class MainActivity : FlutterActivity() {
                 "updateBpm" -> {
                     val bpm = call.argument<Double>("bpm") ?: 60.0
                     updateBpm(bpm)
+                    result.success(null)
+                }
+                "updateSignature" -> {
+                    val signature = call.argument<Int>("signature") ?: 4
+                    updateSignature(signature)
                     result.success(null)
                 }
                 "stop" -> {
@@ -112,6 +123,16 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        stopPulseEngine()
+        stopDroneEngine()
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+            stopPulseEngine()
+            stopDroneEngine()
+        }
     }
 }

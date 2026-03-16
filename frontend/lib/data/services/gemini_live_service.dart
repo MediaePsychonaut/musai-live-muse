@@ -9,6 +9,7 @@ import '../../core/net/channel_factory.dart';
 import '../providers/mentor_providers.dart';
 import '../providers/engine_provider.dart';
 import '../../core/audio/pulse_engine.dart';
+import '../../core/audio/audio_output_service.dart';
 
 class GeminiLiveService {
   final String apiKey;
@@ -101,6 +102,12 @@ class GeminiLiveService {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
                   for (final part in parts) {
+                    final text = part['text'];
+                    // Detect interruption marker from server text if present, or handle barge-in signals
+                    if (text != null && text.toString().toLowerCase().contains("[interruption]")) {
+                      AudioOutputService().clearVocalBuffer();
+                    }
+
                     final functionCall = part['function_call'] ?? part['functionCall'];
                     if (functionCall != null) {
                       _handleFunctionCall(functionCall, onHardwareCommand);
@@ -220,6 +227,32 @@ class GeminiLiveService {
                         },
                         "required": ["frequency", "active"]
                       }
+                    },
+                    {
+                      "name": "start_practice_session",
+                      "description": "Initializes a structured practice session with a specific name and focus.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "name": {
+                            "type": "STRING",
+                            "description": "The title or name of the practice session"
+                          },
+                          "focus": {
+                            "type": "STRING",
+                            "description": "The technical focus of the session"
+                          }
+                        },
+                        "required": ["name", "focus"]
+                      }
+                    },
+                    {
+                      "name": "stop_practice_session",
+                      "description": "Finalizes the current practice session.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {}
+                      }
                     }
                   ]
                 }
@@ -286,6 +319,32 @@ class GeminiLiveService {
                           }
                         },
                         "required": ["frequency", "active"]
+                      }
+                    },
+                    {
+                      "name": "start_practice_session",
+                      "description": "Initializes a structured practice session with a specific name and focus.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "name": {
+                            "type": "STRING",
+                            "description": "The title or name of the practice session"
+                          },
+                          "focus": {
+                            "type": "STRING",
+                            "description": "The technical focus of the session"
+                          }
+                        },
+                        "required": ["name", "focus"]
+                      }
+                    },
+                    {
+                      "name": "stop_practice_session",
+                      "description": "Finalizes the current practice session.",
+                      "parameters": {
+                        "type": "OBJECT",
+                        "properties": {}
                       }
                     }
                   ]
@@ -444,6 +503,9 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
+        // [PURGE-REINFORCEMENT] Clear buffer ONLY on a fresh model turn start
+        AudioOutputService().clearVocalBuffer();
+        
         final parts = modelTurn['parts'] as List?;
         if (parts != null) {
           for (final part in parts) {
@@ -486,18 +548,28 @@ class GeminiLiveService {
       final bool active = args['active'] ?? false;
       if (active) {
         final double bpm = (args['bpm'] is num) ? (args['bpm'] as num).toDouble() : 60.0;
-        Future.microtask(() => pulseEngine.start(bpm));
+        final int signature = (args['signature'] is int) ? args['signature'] as int : 4;
+        Future.microtask(() async {
+          await pulseEngine.updateSignature(signature);
+          await pulseEngine.start(bpm);
+        });
       } else {
         Future.microtask(() => pulseEngine.stop());
       }
     } else if (name == 'set_drone') {
       final bool active = args['active'] ?? false;
       if (active) {
-        final double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0;
+        final double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
         Future.microtask(() => pulseEngine.startDrone(freq));
       } else {
         Future.microtask(() => pulseEngine.stopDrone());
       }
+    } else if (name == 'start_practice_session') {
+      // Execution logic for session management
+      final focus = args['focus'] ?? "General Technical Rehearsal";
+      debugPrint("MUSE_LOG: [EUTE] Session Start Triggered (Focus: $focus)");
+    } else if (name == 'stop_practice_session') {
+      debugPrint("MUSE_LOG: [EUTE] Session Stop Triggered");
     } else {
       responsePayload = {"result": "error", "message": "Unknown function"};
     }

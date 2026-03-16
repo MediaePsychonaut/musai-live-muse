@@ -9,6 +9,10 @@ import '../../../../data/providers/engine_provider.dart';
 import '../../../../data/providers/hardware_provider.dart';
 import '../widgets/progress_view.dart';
 import '../../../../core/dsp/pitch_matrix.dart';
+import '../widgets/agency_indicator.dart';
+import '../widgets/engine_toggle.dart';
+import '../widgets/mentor_button.dart';
+import '../widgets/agency_pulse_overlay.dart';
 
 
 class SanctuaryHudScreen extends ConsumerWidget {
@@ -121,21 +125,21 @@ class SanctuaryHudScreen extends ConsumerWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _EngineToggle(
+                                EngineToggle(
                                   label: "GEN 2.0 (v1α)",
                                   isActive: engineType == EngineType.flash20Exp,
                                   onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash20Exp),
                                   color: mentorState.primaryColor,
                                 ),
                                 const SizedBox(width: 12),
-                                _EngineToggle(
+                                EngineToggle(
                                   label: "GEN 2.5 (v1β)",
                                   isActive: engineType == EngineType.flash25Native,
                                   onTap: () => ref.read(engineProvider.notifier).switchEngine(EngineType.flash25Native),
                                   color: mentorState.primaryColor,
                                 ),
                                 const SizedBox(width: 12),
-                                _EngineToggle(
+                                EngineToggle(
                                   label: "TUNER",
                                   isActive: isTunerActive,
                                   onTap: () => ref.read(tunerEnabledProvider.notifier).state = !isTunerActive,
@@ -272,27 +276,76 @@ class SanctuaryHudScreen extends ConsumerWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW",
-                                    style: TextStyle(
-                                      color: mentorState.primaryColor.withAlpha(150),
-                                      fontSize: 10,
-                                      letterSpacing: 2,
-                                    ),
+                                  Column(
+                                    children: [
+                                      Text(
+                                        "SESSION TARGET",
+                                        style: TextStyle(
+                                          color: mentorState.primaryColor.withAlpha(80),
+                                          fontSize: 9,
+                                          letterSpacing: 3,
+                                          fontFamily: 'SpaceMono',
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 800),
+                                        transitionBuilder: (child, animation) {
+                                          return FadeTransition(
+                                            opacity: animation,
+                                            child: ScaleTransition(
+                                              scale: Tween<double>(begin: 0.95, end: 1.0).animate(CurvedAnimation(
+                                                parent: animation,
+                                                curve: Curves.elasticOut,
+                                              )),
+                                              child: child,
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          key: ValueKey(ref.watch(sessionObjectiveProvider)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            border: Border.symmetric(
+                                              horizontal: BorderSide(color: mentorState.primaryColor.withAlpha(30), width: 0.5),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            (ref.watch(sessionObjectiveProvider) ?? "ACTIVE FLOW").toUpperCase(),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.white.withAlpha(200),
+                                              fontSize: 14,
+                                              letterSpacing: 2.5,
+                                              fontFamily: 'Montserrat',
+                                              fontWeight: FontWeight.w700,
+                                              shadows: [
+                                                Shadow(
+                                                  color: mentorState.primaryColor.withAlpha(150),
+                                                  blurRadius: 10,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 16),
                                   TextButton(
                                     onPressed: () {
                                       ref.read(isSessionActiveProvider.notifier).state = false;
-                                      ref.read(sessionTimerProvider.notifier).stop();
                                     },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white38,
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      side: const BorderSide(color: Colors.white12),
+                                      shape: const RoundedRectangleBorder(),
+                                    ),
                                     child: const Text(
-                                      "END SESSION",
-                                      style: TextStyle(
-                                        color: Colors.redAccent, 
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 6.0,
-                                      ),
+                                      "COMPLETE SESSION",
+                                      style: TextStyle(fontSize: 10, letterSpacing: 4),
                                     ),
                                   ),
                                 ],
@@ -304,11 +357,11 @@ class SanctuaryHudScreen extends ConsumerWidget {
                             const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _MentorButton(Mentor.eute, "EUTE"),
+                                MentorButton(mentor: Mentor.eute, label: "EUTE"),
                                 SizedBox(width: 8),
-                                _MentorButton(Mentor.saravi, "SARAVÍ"),
+                                MentorButton(mentor: Mentor.saravi, label: "SARAVÍ"),
                                 SizedBox(width: 8),
-                                _MentorButton(Mentor.orfio, "ORFIO"),
+                                MentorButton(mentor: Mentor.orfio, label: "ORFIO"),
                               ],
                             ),
                             
@@ -334,6 +387,9 @@ class SanctuaryHudScreen extends ConsumerWidget {
               ],
             ),
           ),
+          
+          // AI AGENCY BLOOM (MISSION: AGENCY-RESONANCE)
+          const AgencyPulseOverlay(),
         ],
       ),
     );
@@ -345,7 +401,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
       onTap: () => _showMetronomeModal(context, ref),
       child: Container(
         padding: const EdgeInsets.all(12),
-        child: _AgencyIndicator(
+        child: AgencyIndicator(
           label: "METRONOME",
           isActive: hardwareState.isMetronomeActive,
           description: "${hardwareState.bpm} BPM",
@@ -361,7 +417,7 @@ class SanctuaryHudScreen extends ConsumerWidget {
       onTap: () => _showDroneModal(context, ref),
       child: Container(
         padding: const EdgeInsets.all(12),
-        child: _AgencyIndicator(
+        child: AgencyIndicator(
           label: "DRONE",
           isActive: hardwareState.isDroneActive,
           description: "KEY: ${hardwareState.key}",
@@ -570,142 +626,4 @@ class SanctuaryHudScreen extends ConsumerWidget {
   }
 }
 
-class _EngineToggle extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-  final Color color;
-
-  const _EngineToggle({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isActive ? color : color.withAlpha(50),
-            width: 1,
-          ),
-          color: isActive ? color.withAlpha(30) : Colors.transparent,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? color : color.withAlpha(100),
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MentorButton extends ConsumerWidget {
-
-  final Mentor mentor;
-  final String label;
-
-  const _MentorButton(this.mentor, this.label);
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final activeMentor = ref.watch(mentorProvider).activeMentor;
-    final isActive = activeMentor == mentor;
-    
-    return TextButton(
-      onPressed: () {
-        ref.read(liveStreamStateProvider.notifier).disconnect();
-        ref.read(mentorProvider.notifier).switchMentor(mentor);
-      },
-      style: TextButton.styleFrom(
-        foregroundColor: isActive ? Colors.white : Colors.white38,
-        backgroundColor: isActive ? ref.watch(mentorProvider).primaryColor.withAlpha(128) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      ),
-      child: Image.asset(
-         'assets/icons/${mentor.name}_icon.png', 
-         width: 24, height: 24, 
-         errorBuilder: (c, e, s) => Text(
-           label,
-           style: TextStyle(
-             color: isActive ? Colors.white : Colors.white30,
-             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-             letterSpacing: 2,
-             fontSize: 12,
-           ),
-         ),
-      ),
-    );
-  }
-}
-
-class _AgencyIndicator extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final String description;
-  final Color color;
-
-  const _AgencyIndicator({
-    required this.label,
-    required this.isActive,
-    required this.description,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 500),
-          width: 24, // Upscaled for touch and visibility
-          height: 24, // Upscaled
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? color : Colors.transparent,
-            border: Border.all(color: color.withAlpha(isActive ? 255 : 50)),
-            boxShadow: isActive ? [
-              BoxShadow(
-                color: color.withAlpha(200),
-                blurRadius: 15, // Increased
-                spreadRadius: 3, // Increased
-              )
-            ] : null,
-          ),
-        ),
-        const SizedBox(height: 12), // Increased
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12, // Increased from 10
-            color: color.withAlpha(isActive ? 255 : 100),
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            letterSpacing: 2.0,
-          ),
-        ),
-        if (isActive)
-          Text(
-            description,
-            style: TextStyle(
-              fontSize: 28, // JUMBO LEGIBILITY
-              color: color.withAlpha(255),
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.5,
-            ),
-          ),
-      ],
-    );
-  }
-}
+// Modular components moved to separate files

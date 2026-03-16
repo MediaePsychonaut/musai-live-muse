@@ -20,6 +20,14 @@ class PulseEngine {
     }
   }
 
+  Future<void> updateSignature(int signature) async {
+    try {
+      await _channel.invokeMethod('updateSignature', {'signature': signature});
+    } on PlatformException catch (e) {
+      debugPrint("MUSE_LOG: Failed to update signature: '${e.message}'.");
+    }
+  }
+
   Future<void> stop() async {
     try {
       await _channel.invokeMethod('stop');

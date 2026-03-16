@@ -136,14 +136,30 @@ class LiveStreamNotifier extends AsyncNotifier<LiveStreamState> {
         },
         onHardwareCommand: (name, args) {
           final hw = ref.read(hardwareProvider.notifier);
+          hw.triggerAgencyPulse(); // GLOBAL PULSE ON AGENCY
           if (name == 'set_metronome') {
             final active = args['active'] ?? false;
             hw.setMetronome(active);
-            if (active) hw.setBpm((args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60);
+            if (active) {
+              hw.setBpm((args['bpm'] is num) ? (args['bpm'] as num).toInt() : 60);
+              final signature = (args['signature'] is int) ? args['signature'] as int : 4;
+              hw.setSignature(signature); // Pass signature to native PulseEngine
+            }
           } else if (name == 'set_drone') {
             final active = args['active'] ?? false;
             hw.setDrone(active);
-            if (active) hw.setKey("${((args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 440.0).toStringAsFixed(0)}Hz");
+            if (active) {
+              double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
+              if (freq <= 0) freq = 196.0; // Enforce G3 default
+              hw.setKey("${freq.toStringAsFixed(0)}Hz");
+            }
+          } else if (name == 'start_practice_session') {
+            final nameArg = args['name'] ?? "Neural Rehearsal";
+            final focusArg = args['focus'] ?? "General Mastery";
+            ref.read(sessionObjectiveProvider.notifier).state = "$nameArg: $focusArg";
+            ref.read(isSessionActiveProvider.notifier).state = true;
+          } else if (name == 'stop_practice_session') {
+            ref.read(isSessionActiveProvider.notifier).state = false;
           }
         },
       );

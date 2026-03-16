@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../local/database_helper.dart';
+import '../models/session.dart';
+import '../models/telemetry.dart';
 
 class PracticeLedger {
   final DatabaseHelper _dbHelper = DatabaseHelper();
@@ -11,12 +13,12 @@ class PracticeLedger {
     String objective = 'ACTIVE FLOW',
   }) async {
     final db = await _dbHelper.database;
-    return await db.insert('sessions', {
-      'start_time': DateTime.now().toIso8601String(),
-      'engine_version': engineVersion,
-      'objective': objective,
-      'is_synced': 0,
-    });
+    final session = Session(
+      startTime: DateTime.now(),
+      engineVersion: engineVersion,
+      objective: objective,
+    );
+    return await db.insert('sessions', session.toMap());
   }
 
   // Close the session and synchronize with Firestore
@@ -146,12 +148,13 @@ class PracticeLedger {
   // Log a telemetry point if inside an active session
   Future<void> logTelemetry(int sessionId, double f0, double centsDeviation) async {
     final db = await _dbHelper.database;
-    await db.insert('telemetry', {
-      'session_id': sessionId,
-      'timestamp': DateTime.now().toIso8601String(),
-      'f0_hz': f0,
-      'cents_deviation': centsDeviation,
-    });
+    final telemetry = Telemetry(
+      sessionId: sessionId,
+      timestamp: DateTime.now(),
+      f0Hz: f0,
+      centsDeviation: centsDeviation,
+    );
+    await db.insert('telemetry', telemetry.toMap());
   }
 
   // Calculate moving averages or weak points for the previous session (Priming constraint)

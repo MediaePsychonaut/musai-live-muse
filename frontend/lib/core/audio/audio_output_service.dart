@@ -63,6 +63,12 @@ class AudioOutputService {
     });
   }
 
+  void clearVocalBuffer() {
+    _channel.invokeMethod('clearVocal').catchError((e) {
+      debugPrint("NATIVE_SINK_ERROR: [CLEAR_VOCAL] $e");
+    });
+  }
+
   void dispose() {
     _channel.invokeMethod('dispose');
     _telemetryChannel.setMessageHandler(null);
