@@ -154,6 +154,15 @@ public:
         }
     }
 
+    void updateBpm(double bpm) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        mBpm = bpm;
+        if (stream) {
+            updatePhaseIncrement();
+        }
+        LOGI("BPM Updated: %f", mBpm);
+    }
+
     void startDrone(double freq) {
         std::lock_guard<std::recursive_mutex> lock(mLock);
         mDroneFreq = freq;

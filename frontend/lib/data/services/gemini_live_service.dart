@@ -102,12 +102,6 @@ class GeminiLiveService {
                 final parts = modelTurn['parts'] as List?;
                 if (parts != null) {
                   for (final part in parts) {
-                    final text = part['text'];
-                    // Detect interruption marker from server text if present, or handle barge-in signals
-                    if (text != null && text.toString().toLowerCase().contains("[interruption]")) {
-                      AudioOutputService().clearVocalBuffer();
-                    }
-
                     final functionCall = part['function_call'] ?? part['functionCall'];
                     if (functionCall != null) {
                       _handleFunctionCall(functionCall, onHardwareCommand);
@@ -503,7 +497,8 @@ class GeminiLiveService {
     if (serverContent != null) {
       final modelTurn = serverContent['model_turn'] ?? serverContent['modelTurn'];
       if (modelTurn != null) {
-        // [PURGE-REINFORCEMENT] Clear buffer ONLY on a fresh model turn start
+        // [STABILIZATION] Purge buffer ONLY on a fresh model turn start
+        debugPrint("MUSE_LOG: [EUTE] model_turn detected. Purging vocal buffer for fresh response.");
         AudioOutputService().clearVocalBuffer();
         
         final parts = modelTurn['parts'] as List?;
@@ -544,32 +539,8 @@ class GeminiLiveService {
       "result": "success"
     };
 
-    if (name == 'set_metronome') {
-      final bool active = args['active'] ?? false;
-      if (active) {
-        final double bpm = (args['bpm'] is num) ? (args['bpm'] as num).toDouble() : 60.0;
-        final int signature = (args['signature'] is int) ? args['signature'] as int : 4;
-        Future.microtask(() async {
-          await pulseEngine.updateSignature(signature);
-          await pulseEngine.start(bpm);
-        });
-      } else {
-        Future.microtask(() => pulseEngine.stop());
-      }
-    } else if (name == 'set_drone') {
-      final bool active = args['active'] ?? false;
-      if (active) {
-        final double freq = (args['frequency'] is num) ? (args['frequency'] as num).toDouble() : 196.0;
-        Future.microtask(() => pulseEngine.startDrone(freq));
-      } else {
-        Future.microtask(() => pulseEngine.stopDrone());
-      }
-    } else if (name == 'start_practice_session') {
-      // Execution logic for session management
-      final focus = args['focus'] ?? "General Technical Rehearsal";
-      debugPrint("MUSE_LOG: [EUTE] Session Start Triggered (Focus: $focus)");
-    } else if (name == 'stop_practice_session') {
-      debugPrint("MUSE_LOG: [EUTE] Session Stop Triggered");
+    if (name == 'set_metronome' || name == 'set_drone' || name == 'start_practice_session' || name == 'stop_practice_session') {
+      // Logic handled via onHardwareCommand callback to ensure Provider Sync
     } else {
       responsePayload = {"result": "error", "message": "Unknown function"};
     }
